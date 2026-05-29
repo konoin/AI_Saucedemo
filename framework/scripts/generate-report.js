@@ -14,24 +14,38 @@ const failedTests = [];
 function classifyError(message = '') {
   const lower = message.toLowerCase();
 
-  if (lower.includes('locator')) {
+  if (
+    lower.includes('locator') ||
+    lower.includes('element(s) not found') ||
+    lower.includes('waiting for locator')
+  ) {
     return 'UI Locator Failure';
   }
 
-  if (lower.includes('timeout')) {
+  if (
+    lower.includes('timeout') ||
+    lower.includes('waiting for response')
+  ) {
     return 'Timeout Failure';
   }
 
-  if (lower.includes('net::err')) {
+  if (
+    lower.includes('net::err') ||
+    lower.includes('econnreset')
+  ) {
     return 'Network Failure';
   }
 
-  if (lower.includes('expect(')) {
+  if (
+    lower.includes('expect(') ||
+    lower.includes('tocontaintext')
+  ) {
     return 'Assertion Failure';
   }
 
   return 'Unknown Failure';
 }
+
 
 function extractTests(suites = []) {
   for (const suite of suites) {
@@ -40,8 +54,8 @@ function extractTests(suites = []) {
         for (const test of spec.tests) {
           for (const result of test.results) {
             if (result.status === 'failed') {
-              const errorMessage =
-                result.error?.message || 'Unknown error';
+                const rawError = result.error?.message || 'Unknown error'; 
+                const errorMessage = rawError.split('\n').slice(0, 6).join('\n');
 
               failedTests.push({
                 title: spec.title,
@@ -65,12 +79,33 @@ extractTests(report.suites);
 
 let summary = '';
 
+const changedTestsPath = 'changed-tests.txt'; 
+let changedTests = []; 
+if (fs.existsSync(changedTestsPath)) { 
+    changedTests = fs 
+        .readFileSync(changedTestsPath, 'utf-8') 
+        .split('\n') 
+        .filter(Boolean); 
+    }
+
 summary += 'AI Selective Regression Report\n\n';
 
 summary += `Repository: ${process.env.GITHUB_REPOSITORY}\n`;
 summary += `Branch: ${process.env.GITHUB_REF_NAME}\n`;
 summary += `Triggered by: ${process.env.GITHUB_ACTOR}\n`;
 summary += `Date: ${new Date().toISOString()}\n\n`;
+
+summary += `Changed Tests:\n`;
+
+if (changedTests.length === 0) {
+  summary += 'No changed tests detected\n\n';
+} else {
+  changedTests.forEach(test => {
+    summary += `- ${test}\n`;
+  });
+
+  summary += '\n';
+}
 
 if (failedTests.length === 0) {
   summary += 'RESULT: PASSED\n\n';
