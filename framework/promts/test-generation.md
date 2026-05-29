@@ -78,3 +78,22 @@ Do NOT:
 * over-generate low-value validation tests
 * produce generic QA checklists
 * generate unrealistic edge cases
+
+## Test Generation Style
+
+Generate:
+
+* only high-value scenarios
+* minimal duplication
+* concise test descriptions
+
+Prefer:
+
+* business-critical coverage
+* regression-efficient scenarios
+
+Avoid:
+
+* excessive edge cases
+* redundant validations
+* low-value UI checks

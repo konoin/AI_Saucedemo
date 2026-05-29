@@ -1,0 +1,95 @@
+name: AI Selective Regression
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  selective-regression:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Detect changed Playwright tests
+        id: changed-tests
+        run: |
+          node framework/scripts/find-changed-tests.js > changed-tests.txt
+
+          echo "Detected tests:"
+          cat changed-tests.txt
+
+          TESTS=$(paste -sd " " changed-tests.txt)
+
+          echo "tests=$TESTS" >> $GITHUB_OUTPUT
+
+      - name: Run impacted Playwright tests
+        id: playwright
+        if: steps.changed-tests.outputs.tests != ''
+        run: |
+          echo "Running impacted tests:"
+          echo "${{ steps.changed-tests.outputs.tests }}"
+
+          npx playwright test ${{ steps.changed-tests.outputs.tests }}
+
+      - name: No changed tests detected
+        if: steps.changed-tests.outputs.tests == ''
+        run: |
+          echo "No changed or newly added Playwright tests detected."
+
+      - name: Prepare test summary
+        if: always()
+        run: |
+          echo "Workflow: AI Selective Regression" > summary.txt
+          echo "Repository: ${{ github.repository }}" >> summary.txt
+          echo "Branch: ${{ github.ref_name }}" >> summary.txt
+          echo "Commit: ${{ github.sha }}" >> summary.txt
+          echo "" >> summary.txt
+          echo "Executed tests:" >> summary.txt
+          cat changed-tests.txt >> summary.txt
+
+      - name: Send email notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+
+          subject: >
+            Playwright Regression -
+            ${{ job.status }}
+
+          to: your-email@example.com
+          from: GitHub Actions
+
+          body: |
+            AI Selective Regression finished.
+
+            Status: ${{ job.status }}
+
+            Repository:
+            ${{ github.repository }}
+
+            Branch:
+            ${{ github.ref_name }}
+
+            Run URL:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          attachments: summary.txt

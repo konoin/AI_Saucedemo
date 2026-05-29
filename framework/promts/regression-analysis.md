@@ -89,3 +89,19 @@ Do NOT:
 * over-prioritize low-risk UI checks
 * generate generic regression advice
 * ignore execution time constraints
+
+## Regression Analysis Style
+
+Focus on:
+
+* impacted areas only
+* execution efficiency
+* release-critical coverage
+
+Avoid:
+
+* recommending full regression by default
+* low-risk scenarios
+* unnecessary expansion
+
+Keep recommendations prioritized and concise.

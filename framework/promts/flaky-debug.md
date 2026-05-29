@@ -89,3 +89,18 @@ Do NOT:
 * use force clicks unless absolutely necessary
 * suggest unstable locator strategies
 * ignore underlying application instability
+
+## Debugging Communication Rules
+
+For failed tests:
+
+* identify the most probable root cause first
+* avoid listing too many hypothetical causes
+* provide the cleanest likely fix
+* mention flaky risk only if relevant
+
+Keep debugging responses under:
+
+* 5 concise bullet points by default
+
+Expand investigation ONLY if requested.

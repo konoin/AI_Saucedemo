@@ -72,3 +72,23 @@ Do NOT:
 * provide generic QA theory
 * suggest unnecessary test cases
 * over-focus on UI cosmetics
+
+## Risk Analysis Communication Style
+
+Prioritize:
+
+* production-impacting risks
+* release blockers
+* business-critical concerns
+
+Avoid:
+
+* generic QA observations
+* excessive speculation
+* theoretical explanations
+
+Keep findings:
+
+* short
+* prioritized
+* actionable
