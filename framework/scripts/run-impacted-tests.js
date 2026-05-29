@@ -1,35 +1,36 @@
-const fs = require('fs');
-const path = require('path');
-const { spawnSync } = require('child_process');
+const fs = require("fs");
+const path = require("path");
+const { spawnSync } = require("child_process");
 
 function parseArgs(argv) {
   const args = {
-    testsFile: process.env.CHANGED_TESTS_FILE || 'changed-tests.txt',
+    testsFile: process.env.CHANGED_TESTS_FILE || "changed-tests.txt",
     metadataFile:
-      process.env.IMPACTED_RUN_METADATA || 'playwright-report/impacted-run.json',
-    workers: process.env.PLAYWRIGHT_WORKERS || '2',
-    projects: (process.env.PLAYWRIGHT_PROJECTS || '')
-      .split(',')
-      .map(project => project.trim())
-      .filter(Boolean)
+      process.env.IMPACTED_RUN_METADATA ||
+      "playwright-report/impacted-run.json",
+    workers: process.env.PLAYWRIGHT_WORKERS || "2",
+    projects: (process.env.PLAYWRIGHT_PROJECTS || "")
+      .split(",")
+      .map((project) => project.trim())
+      .filter(Boolean),
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
 
-    if (arg === '--tests-file') {
+    if (arg === "--tests-file") {
       args.testsFile = argv[index + 1];
       index += 1;
-    } else if (arg === '--metadata-file') {
+    } else if (arg === "--metadata-file") {
       args.metadataFile = argv[index + 1];
       index += 1;
-    } else if (arg === '--workers') {
+    } else if (arg === "--workers") {
       args.workers = argv[index + 1];
       index += 1;
-    } else if (arg === '--projects') {
+    } else if (arg === "--projects") {
       args.projects = argv[index + 1]
-        .split(',')
-        .map(project => project.trim())
+        .split(",")
+        .map((project) => project.trim())
         .filter(Boolean);
       index += 1;
     }
@@ -44,9 +45,9 @@ function readTests(testsFile) {
   }
 
   return fs
-    .readFileSync(testsFile, 'utf8')
+    .readFileSync(testsFile, "utf8")
     .split(/\r?\n/)
-    .map(test => test.trim())
+    .map((test) => test.trim())
     .filter(Boolean);
 }
 
@@ -62,49 +63,49 @@ function main() {
 
   if (tests.length === 0) {
     writeMetadata(args.metadataFile, {
-      status: 'skipped',
+      status: "skipped",
       tests,
       startedAt: startedAt.toISOString(),
       endedAt: new Date().toISOString(),
       durationMs: 0,
       exitCode: 0,
-      command: null
+      command: null,
     });
-    console.log('No changed Playwright tests detected. Skipping execution.');
+    console.log("No changed Playwright tests detected. Skipping execution.");
     return;
   }
 
   const playwrightArgs = [
-    'playwright',
-    'test',
+    "playwright",
+    "test",
     ...tests,
-    '--retries=0',
-    `--workers=${args.workers}`
+    "--retries=0",
+    `--workers=${args.workers}`,
   ];
 
   for (const project of args.projects) {
     playwrightArgs.push(`--project=${project}`);
   }
 
-  const command = ['npx', ...playwrightArgs].join(' ');
+  const command = ["npx", ...playwrightArgs].join(" ");
   console.log(`Executing ${tests.length} impacted Playwright test file(s).`);
   console.log(`Command: ${command}`);
 
-  const result = spawnSync('npx', playwrightArgs, {
-    stdio: 'inherit',
-    shell: process.platform === 'win32'
+  const result = spawnSync("npx", playwrightArgs, {
+    stdio: "inherit",
+    shell: process.platform === "win32",
   });
   const endedAt = new Date();
-  const exitCode = typeof result.status === 'number' ? result.status : 1;
+  const exitCode = typeof result.status === "number" ? result.status : 1;
 
   writeMetadata(args.metadataFile, {
-    status: exitCode === 0 ? 'completed' : 'failed',
+    status: exitCode === 0 ? "completed" : "failed",
     tests,
     startedAt: startedAt.toISOString(),
     endedAt: endedAt.toISOString(),
     durationMs: endedAt.getTime() - startedAt.getTime(),
     exitCode,
-    command
+    command,
   });
 
   if (result.error) {

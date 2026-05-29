@@ -4,6 +4,8 @@ This repository includes a GitHub Actions workflow for impacted Playwright
 regression execution:
 
 - Workflow: `.github/workflows/ai-regression.yml`
+- Full-suite workflow: `.github/workflows/playwright.yml` (pull request and
+  manual execution only)
 - Changed-test detector: `framework/scripts/find-changed-tests.js`
 - Selective runner: `framework/scripts/run-impacted-tests.js`
 - Report generator: `framework/scripts/generate-report.js`
@@ -37,20 +39,20 @@ On every push to `main`, the workflow:
 
 Configure these repository secrets before relying on email notifications:
 
-| Secret | Required | Description |
-| --- | --- | --- |
-| `EMAIL_USERNAME` | Yes | SMTP username. For Gmail, use the account email. |
-| `EMAIL_PASSWORD` | Yes | SMTP password or app password. |
-| `NOTIFICATION_EMAIL` | Yes | Recipient email address for regression reports. |
+| Secret               | Required | Description                                      |
+| -------------------- | -------- | ------------------------------------------------ |
+| `EMAIL_USERNAME`     | Yes      | SMTP username. For Gmail, use the account email. |
+| `EMAIL_PASSWORD`     | Yes      | SMTP password or app password.                   |
+| `NOTIFICATION_EMAIL` | Yes      | Recipient email address for regression reports.  |
 
 ## Optional GitHub secrets
 
-| Secret | Default | Description |
-| --- | --- | --- |
-| `EMAIL_FROM` | `EMAIL_USERNAME` | Sender address shown on the notification. |
-| `SMTP_SERVER` | `smtp.gmail.com` | SMTP host. |
-| `SMTP_PORT` | `465` | SMTP port. |
-| `SMTP_SECURE` | `true` | Whether to use TLS. |
+| Secret        | Default          | Description                               |
+| ------------- | ---------------- | ----------------------------------------- |
+| `EMAIL_FROM`  | `EMAIL_USERNAME` | Sender address shown on the notification. |
+| `SMTP_SERVER` | `smtp.gmail.com` | SMTP host.                                |
+| `SMTP_PORT`   | `465`            | SMTP port.                                |
+| `SMTP_SECURE` | `true`           | Whether to use TLS.                       |
 
 If required email secrets are missing, the workflow still runs and uploads
 artifacts, but the notification step is skipped.
@@ -59,11 +61,11 @@ artifacts, but the notification step is skipped.
 
 The workflow exposes these environment variables for maintainers:
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `TEST_FILE_GLOBS` | `tests/**/*.spec.ts,tests/**/*.test.ts,framework/tests/**/*.spec.ts,framework/tests/**/*.test.ts` | Comma-separated changed-test patterns. |
-| `PLAYWRIGHT_WORKERS` | `2` | Parallel Playwright workers for impacted tests. |
-| `PLAYWRIGHT_PROJECTS` | unset | Optional comma-separated Playwright projects to run, for example `chromium`. |
+| Variable              | Default                                                                                           | Description                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `TEST_FILE_GLOBS`     | `tests/**/*.spec.ts,tests/**/*.test.ts,framework/tests/**/*.spec.ts,framework/tests/**/*.test.ts` | Comma-separated changed-test patterns.                                       |
+| `PLAYWRIGHT_WORKERS`  | `2`                                                                                               | Parallel Playwright workers for impacted tests.                              |
+| `PLAYWRIGHT_PROJECTS` | unset                                                                                             | Optional comma-separated Playwright projects to run, for example `chromium`. |
 
 Keep retries at zero for this workflow so failures remain visible and flaky
 tests are not hidden by repeated attempts.
