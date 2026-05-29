@@ -13,6 +13,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Send pipeline started notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+
+          subject: >
+            AI Regression Started - ${{ github.repository }}
+
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USERNAME }}
+
+          body: |
+            AI Selective Regression pipeline has started.
+
+            Repository:
+            ${{ github.repository }}
+
+            Branch:
+            ${{ github.ref_name }}
+
+            Triggered by:
+            ${{ github.actor }}
+
+            Commit:
+            ${{ github.sha }}
+
+            GitHub Actions Run:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -39,6 +73,7 @@ jobs:
       - name: Run impacted Playwright tests
         id: playwright
         if: steps.changed-tests.outputs.tests != ''
+        continue-on-error: true
         run: |
           echo "Running impacted tests:"
           echo "${{ steps.changed-tests.outputs.tests }}"
@@ -50,38 +85,50 @@ jobs:
         run: |
           echo "No changed or newly added Playwright tests detected."
 
-      - name: Prepare test summary
+      - name: Generate intelligent report
         if: always()
         run: |
-          echo "Workflow: AI Selective Regression" > summary.txt
+          node framework/scripts/generate-report.js
+
+      - name: Append workflow metadata
+        if: always()
+        run: |
+          echo "" >> summary.txt
+          echo "Workflow Metadata" >> summary.txt
+          echo "-------------------" >> summary.txt
           echo "Repository: ${{ github.repository }}" >> summary.txt
           echo "Branch: ${{ github.ref_name }}" >> summary.txt
           echo "Commit: ${{ github.sha }}" >> summary.txt
-          echo "" >> summary.txt
-          echo "Executed tests:" >> summary.txt
-          cat changed-tests.txt >> summary.txt
+          echo "Triggered by: ${{ github.actor }}" >> summary.txt
+          echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> summary.txt
 
-      - name: Send email notification
+      - name: Detect flaky tests
+        if: always()
+        run: |
+          node framework/scripts/flaky-quarantine.js
+
+      - name: Send final regression report
         if: always()
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
           secure: true
+
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
 
           subject: >
-            Playwright Regression -
-            ${{ job.status }}
+            AI Selective Regression - ${{ job.status }}
 
-          to: your-email@example.com
-          from: GitHub Actions
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USERNAME }}
 
           body: |
-            AI Selective Regression finished.
+            AI Selective Regression completed.
 
-            Status: ${{ job.status }}
+            Status:
+            ${{ job.status }}
 
             Repository:
             ${{ github.repository }}
@@ -89,7 +136,17 @@ jobs:
             Branch:
             ${{ github.ref_name }}
 
-            Run URL:
+            Triggered by:
+            ${{ github.actor }}
+
+            GitHub Actions Run:
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          attachments: summary.txt
+            Detailed report attached.
+
+          attachments: |
+            summary.txt
+
+      - name: Fail workflow if tests failed
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1
