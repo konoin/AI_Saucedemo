@@ -9,16 +9,16 @@ investigation.
 
 Detect only newly added or modified Playwright tests under:
 
-* `framework/tests/**/*.spec.ts`
-* `framework/tests/**/*.test.ts`
+- `framework/tests/**/*.spec.ts`
+- `framework/tests/**/*.test.ts`
 
 ## Analyze Regression Result
 
 Determine whether:
 
-* added tests passed
-* modified tests passed
-* changed tests failed
+- added tests passed
+- modified tests passed
+- changed tests failed
 
 Avoid verbose technical logs.
 
@@ -26,11 +26,11 @@ Avoid verbose technical logs.
 
 If tests fail, provide only lightweight possible causes:
 
-* locator not found
-* assertion mismatch
-* timeout exceeded
-* API/network failure
-* navigation failure
+- locator not found
+- assertion mismatch
+- timeout exceeded
+- API/network failure
+- navigation failure
 
 Do not include stack traces, raw Playwright logs, duplicate retry details, or deep
 debugging analysis.

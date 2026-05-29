@@ -33,9 +33,12 @@ function parseDiffLine(line) {
 try {
   const baseRef = getArg("base", process.env.BASE_REF || "origin/main");
   const headRef = getArg("head", process.env.HEAD_REF || "HEAD");
-  const diffOutput = execSync(`git diff --name-status ${baseRef}...${headRef}`, {
-    encoding: "utf-8",
-  });
+  const diffOutput = execSync(
+    `git diff --name-status ${baseRef}...${headRef}`,
+    {
+      encoding: "utf-8",
+    },
+  );
 
   const added = [];
   const modified = [];

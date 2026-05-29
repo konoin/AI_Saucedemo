@@ -1,7 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const reportPath = process.env.PLAYWRIGHT_JSON_REPORT || "playwright-report/results.json";
+const reportPath =
+  process.env.PLAYWRIGHT_JSON_REPORT || "playwright-report/results.json";
 const changedTestsPath = "changed-tests.json";
 
 function normalizeFile(file) {
@@ -9,7 +10,9 @@ function normalizeFile(file) {
     return "";
   }
 
-  const relativeFile = path.isAbsolute(file) ? path.relative(process.cwd(), file) : file;
+  const relativeFile = path.isAbsolute(file)
+    ? path.relative(process.cwd(), file)
+    : file;
   const normalizedFile = relativeFile.split(path.sep).join("/");
 
   if (normalizedFile.startsWith("framework/tests/")) {
@@ -155,7 +158,9 @@ function collectFailures(suites = [], failuresByFile = new Map()) {
           if (messages.length === 0) {
             failure.causes.add("test execution failure");
           } else {
-            messages.forEach((message) => failure.causes.add(possibleCause(message)));
+            messages.forEach((message) =>
+              failure.causes.add(possibleCause(message)),
+            );
           }
         }
       }
@@ -176,7 +181,13 @@ function appendFileList(lines, files) {
   files.forEach((file) => lines.push(`- ${file}`));
 }
 
-function appendResult(lines, files, failuresByFile, successMessage, failureMessage) {
+function appendResult(
+  lines,
+  files,
+  failuresByFile,
+  successMessage,
+  failureMessage,
+) {
   const failedFiles = files.filter((file) => failuresByFile.has(file));
 
   lines.push("");
@@ -194,7 +205,9 @@ function appendResult(lines, files, failuresByFile, successMessage, failureMessa
 
   const possibleCauses = [
     ...new Set(
-      failedFiles.flatMap((file) => [...(failuresByFile.get(file)?.causes || [])]),
+      failedFiles.flatMap((file) => [
+        ...(failuresByFile.get(file)?.causes || []),
+      ]),
     ),
   ];
 
@@ -220,7 +233,9 @@ lines.push(`Branch: ${process.env.GITHUB_REF_NAME || "local"}`);
 lines.push("");
 
 if (changedTests.changed.length === 0) {
-  lines.push("No added or modified Playwright tests detected under framework/tests.");
+  lines.push(
+    "No added or modified Playwright tests detected under framework/tests.",
+  );
   lines.push("");
   lines.push("Result:");
   lines.push("Regression not run.");
