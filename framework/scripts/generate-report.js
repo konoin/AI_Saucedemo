@@ -9,7 +9,7 @@ if (!fs.existsSync(reportPath)) {
 
 const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
 
-const failedTests = [];
+const failedTestsMap = new Map();
 
 function classifyError(message = '') {
   const lower = message.toLowerCase();
@@ -57,12 +57,21 @@ function extractTests(suites = []) {
                 const rawError = result.error?.message || 'Unknown error'; 
                 const errorMessage = rawError.split('\n').slice(0, 6).join('\n');
 
-              failedTests.push({
-                title: spec.title,
-                file: spec.file,
-                error: errorMessage,
-                type: classifyError(errorMessage)
-              });
+              
+const key = `${spec.file}-${spec.title}`;
+
+if (!failedTestsMap.has(key)) {
+  failedTestsMap.set(key, {
+    title: spec.title,
+    file: spec.file,
+    error: errorMessage,
+    type: classifyError(errorMessage),
+    browsers: []
+  });
+}
+
+failedTestsMap.get(key).browsers.push(result.workerIndex);
+
             }
           }
         }
@@ -75,7 +84,7 @@ function extractTests(suites = []) {
   }
 }
 
-extractTests(report.suites);
+const failedTests = Array.from(failedTestsMap.values());
 
 let summary = '';
 
