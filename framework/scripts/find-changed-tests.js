@@ -103,7 +103,11 @@ function resolveDiffRange() {
   const baseSha = process.env.BASE_SHA || process.env.GITHUB_EVENT_BEFORE;
   const headSha = process.env.HEAD_SHA || process.env.GITHUB_SHA || "HEAD";
 
-  if (!baseSha || isAllZeroSha(baseSha)) {
+  if (!baseSha) {
+    return ["HEAD~1", headSha];
+  }
+
+  if (isAllZeroSha(baseSha)) {
     return [EMPTY_TREE, headSha];
   }
 
