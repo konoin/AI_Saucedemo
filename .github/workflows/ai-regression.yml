@@ -1,56 +1,17 @@
 name: AI Selective Regression
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
 jobs:
   selective-regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Debug workflow version
-        run: |
-          echo "AI REGRESSION WORKFLOW ACTIVE"
-
-      - name: Send pipeline started notification
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-
-          subject: >
-            AI Regression Started - ${{ github.repository }}
-
-          to: ${{ secrets.NOTIFICATION_EMAIL }}
-          from: ${{ secrets.EMAIL_USERNAME }}
-
-          body: |
-            AI Selective Regression pipeline has started.
-
-            Repository:
-            ${{ github.repository }}
-
-            Branch:
-            ${{ github.ref_name }}
-
-            Triggered by:
-            ${{ github.actor }}
-
-            Commit:
-            ${{ github.sha }}
-
-            GitHub Actions Run:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -66,62 +27,52 @@ jobs:
       - name: Detect changed Playwright tests
         id: changed-tests
         run: |
-          node framework/scripts/find-changed-tests.js > changed-tests.txt
+          git fetch origin main
+
+          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.*\.(spec|test)\.ts$' || true)
 
           echo "Detected tests:"
-          cat changed-tests.txt
+          echo "$CHANGED_TESTS"
 
-          TESTS=$(paste -sd " " changed-tests.txt)
+          echo "tests<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "tests=$TESTS" >> $GITHUB_OUTPUT
-
-      - name: Run impacted Playwright tests
+      - name: Run changed Playwright tests
         id: playwright
         if: steps.changed-tests.outputs.tests != ''
+        continue-on-error: true
         run: |
-          echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          echo "${{ steps.changed-tests.outputs.tests }}" | xargs npx playwright test > test-output.txt 2>&1
 
-          npx playwright test ${{ steps.changed-tests.outputs.tests }} || true
-
-      - name: No changed tests detected
-        if: steps.changed-tests.outputs.tests == ''
-        run: |
-          echo "No changed or newly added Playwright tests detected."
-
-      - name: Generate intelligent report
+      - name: Prepare email content
         if: always()
-        run: |
-          node framework/scripts/generate-report.js
-
-      - name: Append workflow metadata
-        if: always()
-        run: |
-          echo "" >> summary.txt
-          echo "Workflow Metadata" >> summary.txt
-          echo "-------------------" >> summary.txt
-          echo "Repository: ${{ github.repository }}" >> summary.txt
-          echo "Branch: ${{ github.ref_name }}" >> summary.txt
-          echo "Commit: ${{ github.sha }}" >> summary.txt
-          echo "Triggered by: ${{ github.actor }}" >> summary.txt
-          echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> summary.txt
-
-      - name: Detect flaky tests
-        if: always()
-        run: |
-          node framework/scripts/flaky-quarantine.js
-
-      - name: Read regression summary
-        if: always()
-        id: regression-summary
         run: |
           {
-            echo 'REPORT<<EOF'
-            cat summary.txt
-            echo EOF
-          } >> $GITHUB_OUTPUT
+            echo "AI Selective Regression"
+            echo ""
+            echo "Repository: ${{ github.repository }}"
+            echo "Pull Request Author: ${{ github.actor }}"
+            echo ""
+            echo "Changed or Added Tests:"
+            echo "${{ steps.changed-tests.outputs.tests }}"
+            echo ""
 
-      - name: Send final regression report
+            if grep -qi "failed" test-output.txt; then
+              echo "Execution Result: FAILED"
+              echo ""
+              echo "Failure Reasons:"
+              grep -E "locator|Timeout|expect|Error:" test-output.txt | head -20
+            else
+              echo "Execution Result: PASSED"
+            fi
+
+            echo ""
+            echo "GitHub Actions Run:"
+            echo "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > email.txt
+
+      - name: Send email notification
         if: always()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -133,25 +84,13 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
 
           subject: >
-            AI Selective Regression - ${{ job.status }}
+            AI Regression - ${{ job.status }}
 
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: ${{ secrets.EMAIL_USERNAME }}
 
-          body: ${{ steps.regression-summary.outputs.REPORT }}
+          body: file://email.txt
 
-      - name: Upload Playwright HTML Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-
-      - name: Mark workflow as failed if regression failed
-        if: always()
-        run: |
-          if grep -iq "failed" summary.txt; then
-            echo "Regression failures detected."
-            exit 1
-          fi
+      - name: Fail workflow if tests failed
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1
