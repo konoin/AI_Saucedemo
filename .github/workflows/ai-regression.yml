@@ -8,10 +8,15 @@ on:
 jobs:
   selective-regression:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Debug workflow version
+        run: |
+          echo "AI REGRESSION WORKFLOW ACTIVE"
 
       - name: Send pipeline started notification
         uses: dawidd6/action-send-mail@v3
@@ -135,10 +140,18 @@ jobs:
 
           body: ${{ steps.regression-summary.outputs.REPORT }}
 
+      - name: Upload Playwright HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
       - name: Mark workflow as failed if regression failed
         if: always()
         run: |
-          if grep -iq "FAILED" summary.txt; then
+          if grep -iq "failed" summary.txt; then
             echo "Regression failures detected."
             exit 1
           fi
