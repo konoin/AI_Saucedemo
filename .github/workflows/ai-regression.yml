@@ -45,6 +45,9 @@ jobs:
 
           npx playwright test ${{ steps.changed-tests.outputs.tests }}
 
+      - name: Generate intelligent report 
+        if: always() run: | node framework/scripts/generate-report.js
+
       - name: No changed tests detected
         if: steps.changed-tests.outputs.tests == ''
         run: |
@@ -61,36 +64,23 @@ jobs:
           echo "Executed tests:" >> summary.txt
           cat changed-tests.txt >> summary.txt
 
-      - name: Send email notification
-        if: always()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
+
+       - name: Send email notification
+          if: always()
+          uses: dawidd6/action-send-mail@v3
+          with:
+            server_address: smtp.gmail.com
+            server_port: 465
+            secure: true
+      
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-
+      
           subject: >
             Playwright Regression -
             ${{ job.status }}
-
-            to: ${{ secrets.NOTIFICATION_EMAIL }}
-            from: ${{ secrets.EMAIL_USERNAME }}
-
-
-          body: |
-            AI Selective Regression finished.
-
-            Status: ${{ job.status }}
-
-            Repository:
-            ${{ github.repository }}
-
-            Branch:
-            ${{ github.ref_name }}
-
-            Run URL:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          attachments: summary.txt
+      
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USERNAME }}
+      
+          body: file://summary.txt
