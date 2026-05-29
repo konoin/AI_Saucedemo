@@ -12,20 +12,34 @@ import { defineConfig, devices } from '@playwright/test';
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './framework/tests',
+  testDir: './',
+  testMatch: [
+    'tests/**/*.spec.ts',
+    'tests/**/*.test.ts',
+    'framework/tests/**/*.spec.ts',
+    'framework/tests/**/*.test.ts',
+  ],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Keep regression signal deterministic; investigate flakes instead of hiding them. */
+  retries: 0,
+  /* Allow CI workflows to tune parallelism without changing the config. */
+  workers: process.env.CI
+    ? Number(process.env.PLAYWRIGHT_WORKERS || 2)
+    : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
     ['list'],
     ['html'],
-    ['json', { outputFile: 'playwright-report/results.json' }]
+    [
+      'json',
+      {
+        outputFile:
+          process.env.PLAYWRIGHT_JSON_REPORT || 'playwright-report/results.json',
+      },
+    ],
   ],
 
 

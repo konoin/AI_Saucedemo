@@ -1,15 +1,37 @@
-const fs = require("fs");
+#!/usr/bin/env node
 
-const reportPath = "playwright-report/results.json";
+const fs = require("node:fs");
 
-if (!fs.existsSync(reportPath)) {
-  console.error("Playwright JSON report not found.");
-  process.exit(1);
+const REPORT_PATH =
+  process.env.PLAYWRIGHT_JSON_REPORT || "playwright-report/results.json";
+const CHANGED_TESTS_FILE = process.env.CHANGED_TESTS_FILE || "changed-tests.txt";
+const EXECUTION_FILE =
+  process.env.REGRESSION_EXECUTION_FILE || "regression-execution.json";
+const SUMMARY_TEXT_FILE = process.env.REGRESSION_SUMMARY_FILE || "summary.txt";
+const SUMMARY_JSON_FILE =
+  process.env.REGRESSION_SUMMARY_JSON_FILE || "summary.json";
+const FAILED_TESTS_FILE = process.env.FAILED_TESTS_FILE || "failed-tests.txt";
+const PASSED_TESTS_FILE = process.env.PASSED_TESTS_FILE || "passed-tests.txt";
+
+function readLines(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+
+  return fs
+    .readFileSync(filePath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+function readJson(filePath, fallback = null) {
+  if (!fs.existsSync(filePath)) {
+    return fallback;
+  }
 
-const failedTestsMap = new Map();
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
 
 function classifyError(message = "") {
   const lower = message.toLowerCase();
@@ -37,90 +59,216 @@ function classifyError(message = "") {
   return "Unknown Failure";
 }
 
-function extractTests(suites = []) {
+function firstError(results = []) {
+  for (const result of results) {
+    const error = result.error?.message || result.errors?.[0]?.message;
+    if (error) {
+      return error.split("\n").slice(0, 8).join("\n");
+    }
+  }
+
+  return "";
+}
+
+function finalResultStatus(results = []) {
+  const lastResult = results[results.length - 1];
+  return lastResult?.status || "unknown";
+}
+
+function fullTitle(suiteTitles, specTitle, projectName) {
+  const title = [...suiteTitles, specTitle].filter(Boolean).join(" > ");
+  return projectName ? `${title} [${projectName}]` : title;
+}
+
+function collectTests(suites = [], suiteTitles = []) {
+  const tests = [];
+
   for (const suite of suites) {
-    if (suite.specs) {
-      for (const spec of suite.specs) {
-        for (const test of spec.tests) {
-          for (const result of test.results) {
-            if (result.status === "failed") {
-              const rawError = result.error?.message || "Unknown error";
-              const errorMessage = rawError.split("\n").slice(0, 6).join("\n");
+    const nextTitles = suite.title ? [...suiteTitles, suite.title] : suiteTitles;
 
-              const key = `${spec.file}-${spec.title}`;
+    for (const spec of suite.specs || []) {
+      for (const test of spec.tests || []) {
+        const status = test.status || test.outcome || finalResultStatus(test.results);
+        const projectName = test.projectName || test.projectId || "";
+        const title = fullTitle(nextTitles, spec.title, projectName);
+        const error = firstError(test.results);
+        const failed =
+          status === "unexpected" ||
+          status === "failed" ||
+          ["failed", "timedOut", "interrupted"].includes(
+            finalResultStatus(test.results),
+          );
 
-              if (!failedTestsMap.has(key)) {
-                failedTestsMap.set(key, {
-                  title: spec.title,
-                  file: spec.file,
-                  error: errorMessage,
-                  type: classifyError(errorMessage),
-                  browsers: [],
-                });
-              }
-
-              failedTestsMap.get(key).browsers.push(result.workerIndex);
-            }
-          }
-        }
+        tests.push({
+          title,
+          file: spec.file,
+          status: failed ? "failed" : "passed",
+          rawStatus: status,
+          durationMs: (test.results || []).reduce(
+            (total, result) => total + (result.duration || 0),
+            0,
+          ),
+          failureType: failed ? classifyError(error) : "",
+          error,
+        });
       }
     }
 
-    if (suite.suites) {
-      extractTests(suite.suites);
-    }
+    tests.push(...collectTests(suite.suites || [], nextTitles));
   }
+
+  return tests;
 }
 
-const failedTests = Array.from(failedTestsMap.values());
+function formatDuration(durationMs = 0) {
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
 
-let summary = "";
+  if (minutes === 0) {
+    return `${seconds}s`;
+  }
 
-const changedTestsPath = "changed-tests.txt";
-let changedTests = [];
-if (fs.existsSync(changedTestsPath)) {
-  changedTests = fs
-    .readFileSync(changedTestsPath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
+  return `${minutes}m ${seconds}s`;
 }
 
-summary += "AI Selective Regression Report\n\n";
+function runUrl() {
+  if (!process.env.GITHUB_REPOSITORY || !process.env.GITHUB_RUN_ID) {
+    return "Unavailable outside GitHub Actions";
+  }
 
-summary += `Repository: ${process.env.GITHUB_REPOSITORY}\n`;
-summary += `Branch: ${process.env.GITHUB_REF_NAME}\n`;
-summary += `Triggered by: ${process.env.GITHUB_ACTOR}\n`;
-summary += `Date: ${new Date().toISOString()}\n\n`;
+  return `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+}
 
-summary += `Changed Tests:\n`;
+function writeGitHubOutput(summary) {
+  if (!process.env.GITHUB_OUTPUT) {
+    return;
+  }
 
-if (changedTests.length === 0) {
-  summary += "No changed tests detected\n\n";
-} else {
-  changedTests.forEach((test) => {
-    summary += `- ${test}\n`;
+  const output = [
+    `outcome=${summary.outcome}`,
+    `executed_count=${summary.executedTests.length}`,
+    `passed_count=${summary.passedTests.length}`,
+    `failed_count=${summary.failedTests.length}`,
+    `summary_file=${SUMMARY_TEXT_FILE}`,
+    "",
+  ].join("\n");
+
+  fs.appendFileSync(process.env.GITHUB_OUTPUT, output);
+}
+
+function buildSummary() {
+  const changedTests = readLines(CHANGED_TESTS_FILE);
+  const execution = readJson(EXECUTION_FILE, {
+    status: changedTests.length === 0 ? "skipped" : "failed",
+    executedTests: changedTests,
+    exitCode: changedTests.length === 0 ? 0 : 1,
+    durationMs: 0,
   });
+  const report = readJson(REPORT_PATH);
+  const parsedTests = report ? collectTests(report.suites || []) : [];
+  const executedTests = execution.executedTests || changedTests;
+  const failedTests = parsedTests.filter((test) => test.status === "failed");
+  const passedTests = parsedTests.filter((test) => test.status === "passed");
+  const reportMissingFailure =
+    changedTests.length > 0 && execution.exitCode !== 0 && !report;
+  const outcome =
+    failedTests.length > 0 || reportMissingFailure || execution.exitCode !== 0
+      ? "failed"
+      : "passed";
 
-  summary += "\n";
+  return {
+    outcome,
+    changedTests,
+    executedTests,
+    passedTests,
+    failedTests,
+    durationMs: execution.durationMs || report?.stats?.duration || 0,
+    runUrl: runUrl(),
+    generatedAt: new Date().toISOString(),
+    repository: process.env.GITHUB_REPOSITORY || "local",
+    branch: process.env.GITHUB_REF_NAME || "local",
+    commit: process.env.GITHUB_SHA || "local",
+    actor: process.env.GITHUB_ACTOR || "local",
+    reportMissingFailure,
+  };
 }
 
-if (failedTests.length === 0) {
-  summary += "RESULT: PASSED\n\n";
-  summary += "All impacted Playwright tests passed successfully.\n";
-} else {
-  summary += "RESULT: FAILED\n\n";
+function formatList(items, emptyMessage) {
+  if (items.length === 0) {
+    return `${emptyMessage}\n`;
+  }
 
-  summary += `Failed tests count: ${failedTests.length}\n\n`;
-
-  failedTests.forEach((test, index) => {
-    summary += `${index + 1}. ${test.title}\n`;
-    summary += `File: ${test.file}\n`;
-    summary += `Failure Type: ${test.type}\n`;
-    summary += `Error: ${test.error}\n\n`;
-  });
+  return items.map((item) => `- ${item}`).join("\n") + "\n";
 }
 
-summary += `GitHub Actions Run:\n`;
-summary += `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
+function formatTextSummary(summary) {
+  const lines = [
+    "AI Selective Playwright Regression Report",
+    "",
+    `Result: ${summary.outcome.toUpperCase()}`,
+    `Repository: ${summary.repository}`,
+    `Branch: ${summary.branch}`,
+    `Commit: ${summary.commit}`,
+    `Triggered by: ${summary.actor}`,
+    `Generated at: ${summary.generatedAt}`,
+    `Execution duration: ${formatDuration(summary.durationMs)}`,
+    `GitHub Actions Run: ${summary.runUrl}`,
+    "",
+    `Changed test files (${summary.changedTests.length}):`,
+    formatList(summary.changedTests, "No changed test files detected.").trimEnd(),
+    "",
+    `Executed test files (${summary.executedTests.length}):`,
+    formatList(summary.executedTests, "No impacted test files executed.").trimEnd(),
+    "",
+    `Passed tests (${summary.passedTests.length}):`,
+    formatList(
+      summary.passedTests.map((test) => `${test.file} - ${test.title}`),
+      "No passed tests recorded.",
+    ).trimEnd(),
+    "",
+    `Failed tests (${summary.failedTests.length}):`,
+  ];
 
-console.log(summary);
+  if (summary.failedTests.length === 0) {
+    lines.push("No failed tests recorded.");
+  } else {
+    summary.failedTests.forEach((test, index) => {
+      lines.push(`${index + 1}. ${test.file} - ${test.title}`);
+      lines.push(`   Failure type: ${test.failureType}`);
+      lines.push(`   Error: ${test.error || "No error message captured."}`);
+    });
+  }
+
+  if (summary.reportMissingFailure) {
+    lines.push("");
+    lines.push("Playwright failed before producing a JSON report.");
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function main() {
+  const summary = buildSummary();
+  const textSummary = formatTextSummary(summary);
+
+  fs.writeFileSync(SUMMARY_TEXT_FILE, textSummary);
+  fs.writeFileSync(SUMMARY_JSON_FILE, `${JSON.stringify(summary, null, 2)}\n`);
+  fs.writeFileSync(
+    FAILED_TESTS_FILE,
+    `${summary.failedTests.map((test) => test.title).join("\n")}${
+      summary.failedTests.length ? "\n" : ""
+    }`,
+  );
+  fs.writeFileSync(
+    PASSED_TESTS_FILE,
+    `${summary.passedTests.map((test) => test.title).join("\n")}${
+      summary.passedTests.length ? "\n" : ""
+    }`,
+  );
+  writeGitHubOutput(summary);
+
+  console.log(textSummary);
+}
+
+main();
