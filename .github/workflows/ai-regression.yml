@@ -31,7 +31,7 @@ jobs:
 
           CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.*\.(spec|test)\.ts$' || true)
 
-          echo "Changed tests:"
+          echo "Detected tests:"
           echo "$CHANGED_TESTS"
 
           echo "tests<<EOF" >> $GITHUB_OUTPUT
@@ -39,11 +39,58 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run changed Playwright tests
+        id: playwright
         if: steps.changed-tests.outputs.tests != ''
+        continue-on-error: true
         run: |
-          echo "${{ steps.changed-tests.outputs.tests }}" | xargs npx playwright test
+          echo "${{ steps.changed-tests.outputs.tests }}" | xargs npx playwright test > test-output.txt 2>&1
 
-      - name: No changed tests
-        if: steps.changed-tests.outputs.tests == ''
+      - name: Prepare email content
+        if: always()
         run: |
-          echo "No Playwright test changes detected."
+          {
+            echo "AI Selective Regression"
+            echo ""
+            echo "Repository: ${{ github.repository }}"
+            echo "Pull Request Author: ${{ github.actor }}"
+            echo ""
+            echo "Changed or Added Tests:"
+            echo "${{ steps.changed-tests.outputs.tests }}"
+            echo ""
+
+            if grep -qi "failed" test-output.txt; then
+              echo "Execution Result: FAILED"
+              echo ""
+              echo "Failure Reasons:"
+              grep -E "locator|Timeout|expect|Error:" test-output.txt | head -20
+            else
+              echo "Execution Result: PASSED"
+            fi
+
+            echo ""
+            echo "GitHub Actions Run:"
+            echo "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > email.txt
+
+      - name: Send email notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+
+          subject: >
+            AI Regression - ${{ job.status }}
+
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USERNAME }}
+
+          body: file://email.txt
+
+      - name: Fail workflow if tests failed
+        if: steps.playwright.outcome == 'failure'
+        run: exit 1
