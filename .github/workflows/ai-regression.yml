@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,13 +31,13 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.*\.(spec|test)\.ts$' || true)
+          node framework/scripts/find-changed-tests.js --base origin/main --head HEAD
 
           echo "Detected tests:"
-          echo "$CHANGED_TESTS"
+          cat changed-tests.txt
 
           echo "tests<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
+          cat changed-tests.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run changed Playwright tests
@@ -43,34 +45,13 @@ jobs:
         if: steps.changed-tests.outputs.tests != ''
         continue-on-error: true
         run: |
-          echo "${{ steps.changed-tests.outputs.tests }}" | xargs npx playwright test > test-output.txt 2>&1
+          xargs -r -a changed-tests.txt npx playwright test > test-output.txt 2>&1
 
-      - name: Prepare email content
+      - name: Prepare lightweight QA summary
         if: always()
         run: |
-          {
-            echo "AI Selective Regression"
-            echo ""
-            echo "Repository: ${{ github.repository }}"
-            echo "Pull Request Author: ${{ github.actor }}"
-            echo ""
-            echo "Changed or Added Tests:"
-            echo "${{ steps.changed-tests.outputs.tests }}"
-            echo ""
-
-            if grep -qi "failed" test-output.txt; then
-              echo "Execution Result: FAILED"
-              echo ""
-              echo "Failure Reasons:"
-              grep -E "locator|Timeout|expect|Error:" test-output.txt | head -20
-            else
-              echo "Execution Result: PASSED"
-            fi
-
-            echo ""
-            echo "GitHub Actions Run:"
-            echo "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          } > email.txt
+          node framework/scripts/generate-report.js > email.txt
+          cat email.txt
 
       - name: Send email notification
         if: always()
