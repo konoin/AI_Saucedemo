@@ -86,7 +86,11 @@ const uniqueFailures = Array.from(
 );
 const categoryCounts = countBy(uniqueFailures, (result) => result.category || "Unknown Failure");
 const runUrl = getRunUrl();
-const playwrightReportUrl = process.env.PLAYWRIGHT_REPORT_URL || `${runUrl}#artifacts`;
+const playwrightReportUrl =
+  process.env.PLAYWRIGHT_REPORT_URL ||
+  (process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+    ? `${runUrl}#artifacts`
+    : "Not available outside GitHub Actions.");
 const status =
   failedResults.length > 0 || runMetadata.exitCode > 0
     ? "FAILED"
