@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "area": "checkout",
+      "risk": "high",
+      "tags": ["@checkout", "@smoke"],
+      "changedFiles": [
+        "framework/tests/checkout.spec.ts",
+        "framework/pages/**"
+      ],
+      "tests": [
+        "framework/tests/checkout.spec.ts"
+      ]
+    }
+  ]
+}

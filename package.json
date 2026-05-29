@@ -2,7 +2,12 @@
   "name": "ai_saucedemo",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "regression:scope": "node framework/scripts/find-changed-tests.js",
+    "regression:report": "node framework/scripts/generate-report.js",
+    "regression:quarantine": "node framework/scripts/flaky-quarantine.js",
+    "test:playwright": "playwright test"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
