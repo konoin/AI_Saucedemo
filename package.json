@@ -2,7 +2,11 @@
   "name": "ai_saucedemo",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "regression:changed": "node framework/scripts/find-changed-tests.js",
+    "regression:run": "node framework/scripts/run-impacted-tests.js",
+    "regression:report": "node framework/scripts/generate-report.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

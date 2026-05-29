@@ -5,148 +5,117 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-selective-regression-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   selective-regression:
+    name: Impacted Playwright regression
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CHANGED_TESTS_FILE: changed-tests.txt
+      IMPACTED_RUN_METADATA: playwright-report/impacted-run.json
+      PLAYWRIGHT_JSON_REPORT: playwright-report/results.json
+      REGRESSION_JSON_SUMMARY: playwright-report/regression-summary.json
+      REGRESSION_SUMMARY_FILE: summary.txt
+      PLAYWRIGHT_WORKERS: "2"
+      TEST_FILE_GLOBS: tests/**/*.spec.ts,tests/**/*.test.ts,framework/tests/**/*.spec.ts,framework/tests/**/*.test.ts
+      EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM || secrets.EMAIL_USERNAME }}
+      NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
+      SMTP_SERVER: ${{ secrets.SMTP_SERVER || 'smtp.gmail.com' }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT || '465' }}
+      SMTP_SECURE: ${{ secrets.SMTP_SECURE || 'true' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Send pipeline started notification
-        uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-
-          subject: >
-            AI Regression Started - ${{ github.repository }}
-
-          to: ${{ secrets.NOTIFICATION_EMAIL }}
-          from: ${{ secrets.EMAIL_USERNAME }}
-
-          body: |
-            AI Selective Regression pipeline has started.
-
-            Repository:
-            ${{ github.repository }}
-
-            Branch:
-            ${{ github.ref_name }}
-
-            Triggered by:
-            ${{ github.actor }}
-
-            Commit:
-            ${{ github.sha }}
-
-            GitHub Actions Run:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Detect changed or added Playwright tests
+        id: changed-tests
+        run: |
+          node framework/scripts/find-changed-tests.js \
+            --base "${{ github.event.before }}" \
+            --head "${{ github.sha }}" \
+            --output "$CHANGED_TESTS_FILE" \
+            --github-output
 
       - name: Install dependencies
+        if: steps.changed-tests.outputs.has_changed_tests == 'true'
         run: npm ci
 
       - name: Install Playwright browsers
+        if: steps.changed-tests.outputs.has_changed_tests == 'true'
         run: npx playwright install --with-deps
 
-      - name: Detect changed Playwright tests
-        id: changed-tests
-        run: |
-          node framework/scripts/find-changed-tests.js > changed-tests.txt
-
-          echo "Detected tests:"
-          cat changed-tests.txt
-
-          TESTS=$(paste -sd " " changed-tests.txt)
-
-          echo "tests=$TESTS" >> $GITHUB_OUTPUT
-
       - name: Run impacted Playwright tests
-        id: playwright
-        if: steps.changed-tests.outputs.tests != ''
+        id: impacted-tests
+        if: steps.changed-tests.outputs.has_changed_tests == 'true'
         continue-on-error: true
         run: |
-          echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          node framework/scripts/run-impacted-tests.js \
+            --tests-file "$CHANGED_TESTS_FILE" \
+            --workers "$PLAYWRIGHT_WORKERS"
 
-          npx playwright test ${{ steps.changed-tests.outputs.tests }}
-
-      - name: No changed tests detected
-        if: steps.changed-tests.outputs.tests == ''
+      - name: Record no impacted tests
+        if: steps.changed-tests.outputs.has_changed_tests != 'true'
         run: |
           echo "No changed or newly added Playwright tests detected."
 
-      - name: Generate intelligent report
+      - name: Generate regression report
+        id: report
         if: always()
         run: |
-          node framework/scripts/generate-report.js
+          node framework/scripts/generate-report.js \
+            --tests-file "$CHANGED_TESTS_FILE" \
+            --report-file "$PLAYWRIGHT_JSON_REPORT" \
+            --metadata-file "$IMPACTED_RUN_METADATA" \
+            --summary-file "$REGRESSION_SUMMARY_FILE" \
+            --json-summary-file "$REGRESSION_JSON_SUMMARY" \
+            --github-output
 
-      - name: Append workflow metadata
+      - name: Upload regression artifacts
         if: always()
-        run: |
-          echo "" >> summary.txt
-          echo "Workflow Metadata" >> summary.txt
-          echo "-------------------" >> summary.txt
-          echo "Repository: ${{ github.repository }}" >> summary.txt
-          echo "Branch: ${{ github.ref_name }}" >> summary.txt
-          echo "Commit: ${{ github.sha }}" >> summary.txt
-          echo "Triggered by: ${{ github.actor }}" >> summary.txt
-          echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> summary.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-selective-regression-report
+          path: |
+            ${{ env.REGRESSION_SUMMARY_FILE }}
+            ${{ env.CHANGED_TESTS_FILE }}
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
-      - name: Detect flaky tests
-        if: always()
-        run: |
-          node framework/scripts/flaky-quarantine.js
-
-      - name: Send final regression report
-        if: always()
+      - name: Send regression email notification
+        if: always() && steps.report.outputs.regression_status != '' && env.EMAIL_USERNAME != '' && env.EMAIL_PASSWORD != '' && env.NOTIFICATION_EMAIL != ''
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
+          server_address: ${{ env.SMTP_SERVER }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: ${{ env.SMTP_SECURE }}
+          username: ${{ env.EMAIL_USERNAME }}
+          password: ${{ env.EMAIL_PASSWORD }}
+          subject: ${{ steps.report.outputs.email_subject }} - ${{ github.repository }}
+          to: ${{ env.NOTIFICATION_EMAIL }}
+          from: ${{ env.EMAIL_FROM }}
+          body: file://${{ env.REGRESSION_SUMMARY_FILE }}
+          attachments: ${{ env.REGRESSION_SUMMARY_FILE }}
 
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-
-          subject: >
-            AI Selective Regression - ${{ job.status }}
-
-          to: ${{ secrets.NOTIFICATION_EMAIL }}
-          from: ${{ secrets.EMAIL_USERNAME }}
-
-          body: |
-            AI Selective Regression completed.
-
-            Status:
-            ${{ job.status }}
-
-            Repository:
-            ${{ github.repository }}
-
-            Branch:
-            ${{ github.ref_name }}
-
-            Triggered by:
-            ${{ github.actor }}
-
-            GitHub Actions Run:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Detailed report attached.
-
-          attachments: |
-            summary.txt
-
-      - name: Fail workflow if tests failed
-        if: steps.playwright.outcome == 'failure'
+      - name: Fail workflow if impacted tests failed
+        if: always() && steps.report.outputs.regression_status == 'failed'
         run: exit 1
