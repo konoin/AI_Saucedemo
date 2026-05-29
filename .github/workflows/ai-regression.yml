@@ -5,17 +5,39 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-selective-regression-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   selective-regression:
+    name: Changed Playwright tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      PLAYWRIGHT_WORKERS: 50%
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_SECURE: ${{ vars.SMTP_SECURE || 'true' }}
+      SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      TEST_FILE_GLOBS: tests/**/*.spec.ts,tests/**/*.test.ts,framework/tests/**/*.spec.ts,framework/tests/**/*.test.ts
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
+          cache: npm
           node-version: 20
 
       - name: Install dependencies
@@ -27,69 +49,57 @@ jobs:
       - name: Detect changed Playwright tests
         id: changed-tests
         run: |
-          node framework/scripts/find-changed-tests.js > changed-tests.txt
-
-          echo "Detected tests:"
-          cat changed-tests.txt
-
-          TESTS=$(paste -sd " " changed-tests.txt)
-
-          echo "tests=$TESTS" >> $GITHUB_OUTPUT
+          node framework/scripts/find-changed-tests.js \
+            --base "${{ github.event.before }}" \
+            --head "${{ github.sha }}" \
+            --list-file changed-tests.txt \
+            --json-file regression-results/changed-tests.json
 
       - name: Run impacted Playwright tests
         id: playwright
-        if: steps.changed-tests.outputs.tests != ''
+        continue-on-error: true
         run: |
-          echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          node framework/scripts/run-changed-tests.js \
+            --list-file changed-tests.txt \
+            --results-dir regression-results
 
-          npx playwright test ${{ steps.changed-tests.outputs.tests }}
-
-      - name: No changed tests detected
-        if: steps.changed-tests.outputs.tests == ''
-        run: |
-          echo "No changed or newly added Playwright tests detected."
-
-      - name: Prepare test summary
+      - name: Format regression report
+        id: report
         if: always()
         run: |
-          echo "Workflow: AI Selective Regression" > summary.txt
-          echo "Repository: ${{ github.repository }}" >> summary.txt
-          echo "Branch: ${{ github.ref_name }}" >> summary.txt
-          echo "Commit: ${{ github.sha }}" >> summary.txt
-          echo "" >> summary.txt
-          echo "Executed tests:" >> summary.txt
-          cat changed-tests.txt >> summary.txt
+          node framework/scripts/format-regression-summary.js \
+            --results-dir regression-results
 
       - name: Send email notification
-        if: always()
+        if: always() && env.SMTP_SERVER != '' && env.SMTP_PORT != '' && env.SMTP_USERNAME != '' && env.SMTP_PASSWORD != '' && env.EMAIL_TO != '' && env.EMAIL_FROM != ''
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
+          server_address: ${{ env.SMTP_SERVER }}
+          server_port: ${{ env.SMTP_PORT }}
+          secure: ${{ env.SMTP_SECURE }}
+          username: ${{ env.SMTP_USERNAME }}
+          password: ${{ env.SMTP_PASSWORD }}
+          subject: Playwright Regression ${{ steps.report.outputs.email_subject_status }} - ${{ github.repository }}
+          to: ${{ env.EMAIL_TO }}
+          from: ${{ env.EMAIL_FROM }}
+          body: ${{ steps.report.outputs.email_body }}
+          attachments: regression-results/summary.md,regression-results/summary.json,regression-results/changed-tests.json
 
-          subject: >
-            Playwright Regression -
-            ${{ job.status }}
+      - name: Warn when email is not configured
+        if: always() && (env.SMTP_SERVER == '' || env.SMTP_PORT == '' || env.SMTP_USERNAME == '' || env.SMTP_PASSWORD == '' || env.EMAIL_TO == '' || env.EMAIL_FROM == '')
+        run: |
+          echo "::warning::Email notification skipped because one or more SMTP/email secrets are not configured."
 
-          to: your-email@example.com
-          from: GitHub Actions
+      - name: Upload regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-selective-regression
+          path: regression-results/
+          retention-days: 14
 
-          body: |
-            AI Selective Regression finished.
-
-            Status: ${{ job.status }}
-
-            Repository:
-            ${{ github.repository }}
-
-            Branch:
-            ${{ github.ref_name }}
-
-            Run URL:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          attachments: summary.txt
+      - name: Fail workflow when tests fail
+        if: always()
+        run: |
+          exit_code="$(cat regression-results/exit-code.txt)"
+          exit "$exit_code"
