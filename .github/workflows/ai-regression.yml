@@ -73,12 +73,11 @@ jobs:
       - name: Run impacted Playwright tests
         id: playwright
         if: steps.changed-tests.outputs.tests != ''
-        continue-on-error: true
         run: |
           echo "Running impacted tests:"
           echo "${{ steps.changed-tests.outputs.tests }}"
 
-          npx playwright test ${{ steps.changed-tests.outputs.tests }}
+          npx playwright test ${{ steps.changed-tests.outputs.tests }} || true
 
       - name: No changed tests detected
         if: steps.changed-tests.outputs.tests == ''
@@ -107,6 +106,16 @@ jobs:
         run: |
           node framework/scripts/flaky-quarantine.js
 
+      - name: Read regression summary
+        if: always()
+        id: regression-summary
+        run: |
+          {
+            echo 'REPORT<<EOF'
+            cat summary.txt
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
       - name: Send final regression report
         if: always()
         uses: dawidd6/action-send-mail@v3
@@ -124,29 +133,12 @@ jobs:
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: ${{ secrets.EMAIL_USERNAME }}
 
-          body: |
-            AI Selective Regression completed.
+          body: ${{ steps.regression-summary.outputs.REPORT }}
 
-            Status:
-            ${{ job.status }}
-
-            Repository:
-            ${{ github.repository }}
-
-            Branch:
-            ${{ github.ref_name }}
-
-            Triggered by:
-            ${{ github.actor }}
-
-            GitHub Actions Run:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Detailed report attached.
-
-          attachments: |
-            summary.txt
-
-      - name: Fail workflow if tests failed
-        if: steps.playwright.outcome == 'failure'
-        run: exit 1
+      - name: Mark workflow as failed if regression failed
+        if: always()
+        run: |
+          if grep -iq "FAILED" summary.txt; then
+            echo "Regression failures detected."
+            exit 1
+          fi
