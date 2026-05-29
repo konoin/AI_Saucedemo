@@ -24,7 +24,7 @@ test("successful checkout flow", async ({ page }) => {
 
   await page.locator('[data-test="finish"]').click();
 
-  await expect(page.locator(".complete-header-test1")).toContainText(
+  await expect(page.locator(".complete-header-test2")).toContainText(
     "Thank you for your order!",
   );
 });
