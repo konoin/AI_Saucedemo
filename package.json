@@ -2,7 +2,14 @@
   "name": "ai_saucedemo",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "test": "playwright test",
+    "regression:detect": "node framework/scripts/find-changed-tests.js",
+    "regression:run": "node framework/scripts/run-selective-regression.js",
+    "regression:flaky": "node framework/scripts/flaky-quarantine.js",
+    "regression:report": "node framework/scripts/generate-report.js",
+    "regression:gate": "node framework/scripts/fail-on-regression.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

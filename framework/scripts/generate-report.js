@@ -1,126 +1,223 @@
 const fs = require("fs");
+const {
+  DEFAULT_REPORT_PATH,
+  REPORT_DIR,
+  collectTestResults,
+  ensureDir,
+  formatDuration,
+  loadJson,
+  unique,
+  writeJson,
+} = require("./regression-utils");
 
-const reportPath = "playwright-report/results.json";
+const PLAN_PATH = "regression-plan.json";
+const RUN_METADATA_PATH = `${REPORT_DIR}/run-metadata.json`;
+const CANDIDATES_PATH = `${REPORT_DIR}/flaky-quarantine-candidates.json`;
+const REPORT_JSON_PATH = `${REPORT_DIR}/regression-report.json`;
+const SUMMARY_PATH = "summary.txt";
 
-if (!fs.existsSync(reportPath)) {
-  console.error("Playwright JSON report not found.");
-  process.exit(1);
+function countBy(values, keySelector) {
+  return values.reduce((counts, value) => {
+    const key = keySelector(value);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
-
-const failedTestsMap = new Map();
-
-function classifyError(message = "") {
-  const lower = message.toLowerCase();
-
-  if (
-    lower.includes("locator") ||
-    lower.includes("element(s) not found") ||
-    lower.includes("waiting for locator")
-  ) {
-    return "UI Locator Failure";
+function listItems(items, limit = 10) {
+  if (items.length === 0) {
+    return ["- None"];
   }
 
-  if (lower.includes("timeout") || lower.includes("waiting for response")) {
-    return "Timeout Failure";
+  const visible = items.slice(0, limit).map((item) => `- ${item}`);
+  if (items.length > limit) {
+    visible.push(`- ...and ${items.length - limit} more`);
   }
 
-  if (lower.includes("net::err") || lower.includes("econnreset")) {
-    return "Network Failure";
-  }
-
-  if (lower.includes("expect(") || lower.includes("tocontaintext")) {
-    return "Assertion Failure";
-  }
-
-  return "Unknown Failure";
+  return visible;
 }
 
-function extractTests(suites = []) {
-  for (const suite of suites) {
-    if (suite.specs) {
-      for (const spec of suite.specs) {
-        for (const test of spec.tests) {
-          for (const result of test.results) {
-            if (result.status === "failed") {
-              const rawError = result.error?.message || "Unknown error";
-              const errorMessage = rawError.split("\n").slice(0, 6).join("\n");
+function resultName(result) {
+  return `${result.title} [${result.projectName}] (${result.file})`;
+}
 
-              const key = `${spec.file}-${spec.title}`;
+function getRunUrl() {
+  if (!process.env.GITHUB_REPOSITORY || !process.env.GITHUB_RUN_ID) {
+    return "Not available outside GitHub Actions.";
+  }
 
-              if (!failedTestsMap.has(key)) {
-                failedTestsMap.set(key, {
-                  title: spec.title,
-                  file: spec.file,
-                  error: errorMessage,
-                  type: classifyError(errorMessage),
-                  browsers: [],
-                });
-              }
+  return `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+}
 
-              failedTestsMap.get(key).browsers.push(result.workerIndex);
-            }
-          }
-        }
+ensureDir(REPORT_DIR);
+
+const plan = loadJson(PLAN_PATH, {
+  changedTests: [],
+  addedTests: [],
+  modifiedTests: [],
+  impactedTests: [],
+  selectedTests: [],
+});
+const runMetadata = loadJson(RUN_METADATA_PATH, {
+  status: "not_started",
+  exitCode: 0,
+  runnableTests: [],
+  quarantinedTests: [],
+  durationMs: 0,
+});
+const flakyAnalysis = loadJson(CANDIDATES_PATH, {
+  flakyTests: [],
+  quarantineCandidates: [],
+});
+const report = loadJson(DEFAULT_REPORT_PATH, null);
+const testResults = report ? collectTestResults(report) : [];
+const failedResults = testResults.filter((result) => result.failed);
+const flakyResults = testResults.filter((result) => result.flaky);
+const passedResults = testResults.filter((result) => result.finalStatus === "passed" && !result.flaky);
+const uniqueFailures = Array.from(
+  failedResults
+    .reduce((failures, result) => {
+      if (!failures.has(result.rootCauseHash)) {
+        failures.set(result.rootCauseHash, result);
       }
-    }
+      return failures;
+    }, new Map())
+    .values(),
+);
+const categoryCounts = countBy(uniqueFailures, (result) => result.category || "Unknown Failure");
+const runUrl = getRunUrl();
+const playwrightReportUrl = process.env.PLAYWRIGHT_REPORT_URL || `${runUrl}#artifacts`;
+const status =
+  failedResults.length > 0 || runMetadata.exitCode > 0
+    ? "FAILED"
+    : flakyResults.length > 0
+      ? "PASSED_WITH_FLAKY"
+      : runMetadata.status === "skipped"
+        ? "SKIPPED"
+        : "PASSED";
 
-    if (suite.suites) {
-      extractTests(suite.suites);
-    }
-  }
-}
+const reportPayload = {
+  generatedAt: new Date().toISOString(),
+  status,
+  durationMs: runMetadata.durationMs,
+  execution: {
+    changedTests: plan.changedTests || [],
+    addedTests: plan.addedTests || [],
+    modifiedTests: plan.modifiedTests || [],
+    impactedTests: plan.impactedTests || [],
+    selectedTests: plan.selectedTests || [],
+    runnableTests: runMetadata.runnableTests || [],
+    quarantinedTests: runMetadata.quarantinedTests || [],
+  },
+  results: {
+    passed: passedResults.map(resultName),
+    failed: uniqueFailures.map((result) => ({
+      name: resultName(result),
+      category: result.category,
+      rootCause: result.rootCause,
+      attempts: result.attempts,
+      statuses: result.statuses,
+    })),
+    flaky: flakyResults.map((result) => ({
+      name: resultName(result),
+      attempts: result.attempts,
+      statuses: result.statuses,
+    })),
+    failureCategories: categoryCounts,
+    quarantineCandidates: flakyAnalysis.quarantineCandidates || [],
+  },
+  links: {
+    githubRun: runUrl,
+    playwrightReport: playwrightReportUrl,
+  },
+};
 
-const failedTests = Array.from(failedTestsMap.values());
+writeJson(REPORT_JSON_PATH, reportPayload);
 
-let summary = "";
+const lines = [
+  "AI-Augmented Selective Regression Report",
+  "========================================",
+  "",
+  `Status: ${status}`,
+  `Duration: ${formatDuration(runMetadata.durationMs)}`,
+  `Repository: ${process.env.GITHUB_REPOSITORY || "local"}`,
+  `Branch: ${process.env.GITHUB_REF_NAME || process.env.GITHUB_HEAD_REF || "local"}`,
+  `Triggered by: ${process.env.GITHUB_ACTOR || "local"}`,
+  `Generated: ${reportPayload.generatedAt}`,
+  "",
+  "Links",
+  "-----",
+  `GitHub Actions run: ${runUrl}`,
+  `Playwright report: ${playwrightReportUrl}`,
+  "",
+  "Execution Summary",
+  "-----------------",
+  `Changed test files: ${(plan.changedTests || []).length}`,
+  `New tests: ${(plan.addedTests || []).length}`,
+  `Modified tests: ${(plan.modifiedTests || []).length}`,
+  `Impacted tests from dependency mapping: ${(plan.impactedTests || []).length}`,
+  `Selected tests: ${(plan.selectedTests || []).length}`,
+  `Runnable tests: ${(runMetadata.runnableTests || []).length}`,
+  `Quarantined tests skipped: ${(runMetadata.quarantinedTests || []).length}`,
+  "",
+  "Result Summary",
+  "--------------",
+  `Passed tests: ${passedResults.length}`,
+  `Failed tests: ${uniqueFailures.length}`,
+  `Flaky tests: ${unique(flakyResults.map(resultName)).length}`,
+  `Failure categories: ${
+    Object.keys(categoryCounts).length
+      ? Object.entries(categoryCounts)
+          .map(([category, count]) => `${category}=${count}`)
+          .join(", ")
+      : "None"
+  }`,
+  "",
+  "Changed Tests",
+  "-------------",
+  ...listItems(plan.changedTests || [], 15),
+  "",
+  "Passed Tests",
+  "------------",
+  ...listItems(unique(passedResults.map(resultName)), 15),
+  "",
+  "Failed Tests and Root Causes",
+  "----------------------------",
+];
 
-const changedTestsPath = "changed-tests.txt";
-let changedTests = [];
-if (fs.existsSync(changedTestsPath)) {
-  changedTests = fs
-    .readFileSync(changedTestsPath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
-}
-
-summary += "AI Selective Regression Report\n\n";
-
-summary += `Repository: ${process.env.GITHUB_REPOSITORY}\n`;
-summary += `Branch: ${process.env.GITHUB_REF_NAME}\n`;
-summary += `Triggered by: ${process.env.GITHUB_ACTOR}\n`;
-summary += `Date: ${new Date().toISOString()}\n\n`;
-
-summary += `Changed Tests:\n`;
-
-if (changedTests.length === 0) {
-  summary += "No changed tests detected\n\n";
+if (uniqueFailures.length === 0) {
+  lines.push("- None");
 } else {
-  changedTests.forEach((test) => {
-    summary += `- ${test}\n`;
+  uniqueFailures.forEach((result, index) => {
+    lines.push(
+      `${index + 1}. ${resultName(result)}`,
+      `   Category: ${result.category}`,
+      `   Root cause: ${result.rootCause}`,
+      `   Attempts: ${result.attempts} (${result.statuses.join(" -> ")})`,
+    );
   });
-
-  summary += "\n";
 }
 
-if (failedTests.length === 0) {
-  summary += "RESULT: PASSED\n\n";
-  summary += "All impacted Playwright tests passed successfully.\n";
+lines.push("", "Flaky Tests", "-----------");
+if (flakyResults.length === 0) {
+  lines.push("- None");
 } else {
-  summary += "RESULT: FAILED\n\n";
+  unique(flakyResults.map(resultName)).forEach((name) => lines.push(`- ${name}`));
+}
 
-  summary += `Failed tests count: ${failedTests.length}\n\n`;
-
-  failedTests.forEach((test, index) => {
-    summary += `${index + 1}. ${test.title}\n`;
-    summary += `File: ${test.file}\n`;
-    summary += `Failure Type: ${test.type}\n`;
-    summary += `Error: ${test.error}\n\n`;
+lines.push("", "Quarantine Recommendations", "--------------------------");
+if (!flakyAnalysis.quarantineCandidates || flakyAnalysis.quarantineCandidates.length === 0) {
+  lines.push("- None");
+} else {
+  flakyAnalysis.quarantineCandidates.slice(0, 10).forEach((candidate) => {
+    lines.push(
+      `- ${candidate.title} [${candidate.projectName}] (${candidate.file}) - flaky ${candidate.flakyRuns}/${candidate.observedRuns} observed runs`,
+    );
   });
 }
 
-summary += `GitHub Actions Run:\n`;
-summary += `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
+lines.push("");
 
+const summary = `${lines.join("\n")}\n`;
+fs.writeFileSync(SUMMARY_PATH, summary);
 console.log(summary);

@@ -1,0 +1,10 @@
+{
+  "description": "Optional dependency mapping for impacted-test selection. Add source patterns and the Playwright tests that should run when those sources change.",
+  "mappings": [
+    {
+      "area": "login",
+      "source": ["framework/pages/LoginPage.ts"],
+      "tests": ["framework/tests/checkout.spec.ts"]
+    }
+  ]
+}

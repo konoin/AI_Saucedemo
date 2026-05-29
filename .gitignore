@@ -6,3 +6,12 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+.regression-cache/
+framework/reports/
+changed-tests.txt
+impacted-tests.txt
+runnable-tests.txt
+quarantined-tests.txt
+flaky-tests.txt
+regression-plan.json
+summary.txt

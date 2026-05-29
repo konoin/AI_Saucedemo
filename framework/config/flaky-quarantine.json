@@ -1,0 +1,5 @@
+{
+  "description": "Runtime quarantine list for repeatedly unstable Playwright tests. Keep this file intentionally small and remove entries once the instability is fixed.",
+  "quarantinedFiles": [],
+  "quarantinedTests": []
+}
