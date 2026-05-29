@@ -30,25 +30,25 @@ only changed or newly added Playwright test files.
 
 Configure these repository secrets before enabling email notifications:
 
-| Secret | Description |
-| --- | --- |
-| `SMTP_SERVER` | SMTP server host, for example `smtp.gmail.com`. |
-| `SMTP_PORT` | SMTP server port, for example `465` or `587`. |
-| `SMTP_SECURE` | `true` for TLS-on-connect, otherwise `false`. |
-| `SMTP_USERNAME` | SMTP authentication username. |
-| `SMTP_PASSWORD` | SMTP authentication password or app password. |
-| `REGRESSION_EMAIL_TO` | Notification recipient address. |
+| Secret                  | Description                                                    |
+| ----------------------- | -------------------------------------------------------------- |
+| `SMTP_SERVER`           | SMTP server host, for example `smtp.gmail.com`.                |
+| `SMTP_PORT`             | SMTP server port, for example `465` or `587`.                  |
+| `SMTP_SECURE`           | `true` for TLS-on-connect, otherwise `false`.                  |
+| `SMTP_USERNAME`         | SMTP authentication username.                                  |
+| `SMTP_PASSWORD`         | SMTP authentication password or app password.                  |
+| `REGRESSION_EMAIL_TO`   | Notification recipient address.                                |
 | `REGRESSION_EMAIL_FROM` | Sender address. If omitted, the workflow uses `SMTP_USERNAME`. |
 
 ## Optional configuration
 
 The workflow defines these environment variables and can be adjusted in the YAML:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PLAYWRIGHT_TEST_GLOBS` | `tests/**/*.spec.ts,tests/**/*.test.ts,framework/tests/**/*.spec.ts,framework/tests/**/*.test.ts` | Comma-separated test file globs used by change detection. |
-| `PLAYWRIGHT_WORKERS` | `2` | Parallel workers passed to Playwright. |
-| `PLAYWRIGHT_JSON_REPORT` | `playwright-report/results.json` | JSON report consumed by the summary script. |
+| Variable                 | Default                                                                                           | Purpose                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `PLAYWRIGHT_TEST_GLOBS`  | `tests/**/*.spec.ts,tests/**/*.test.ts,framework/tests/**/*.spec.ts,framework/tests/**/*.test.ts` | Comma-separated test file globs used by change detection. |
+| `PLAYWRIGHT_WORKERS`     | `2`                                                                                               | Parallel workers passed to Playwright.                    |
+| `PLAYWRIGHT_JSON_REPORT` | `playwright-report/results.json`                                                                  | JSON report consumed by the summary script.               |
 
 ## Local usage
 

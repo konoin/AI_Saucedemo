@@ -4,7 +4,8 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const CHANGED_TESTS_FILE = process.env.CHANGED_TESTS_FILE || "changed-tests.txt";
+const CHANGED_TESTS_FILE =
+  process.env.CHANGED_TESTS_FILE || "changed-tests.txt";
 const EXECUTION_FILE =
   process.env.REGRESSION_EXECUTION_FILE || "regression-execution.json";
 

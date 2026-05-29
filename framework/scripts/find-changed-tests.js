@@ -65,7 +65,10 @@ function globToRegExp(glob) {
 function configuredPatterns() {
   const configured = process.env.PLAYWRIGHT_TEST_GLOBS;
   const globs = configured
-    ? configured.split(",").map((glob) => glob.trim()).filter(Boolean)
+    ? configured
+        .split(",")
+        .map((glob) => glob.trim())
+        .filter(Boolean)
     : DEFAULT_TEST_GLOBS;
 
   return globs.map(globToRegExp);
@@ -170,7 +173,9 @@ function main() {
     return;
   }
 
-  console.error(`Detected ${changedTests.length} impacted Playwright test file(s).`);
+  console.error(
+    `Detected ${changedTests.length} impacted Playwright test file(s).`,
+  );
   changedTests.forEach((testFile) => console.log(testFile));
 }
 

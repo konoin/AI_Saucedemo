@@ -4,7 +4,8 @@ const fs = require("node:fs");
 
 const REPORT_PATH =
   process.env.PLAYWRIGHT_JSON_REPORT || "playwright-report/results.json";
-const CHANGED_TESTS_FILE = process.env.CHANGED_TESTS_FILE || "changed-tests.txt";
+const CHANGED_TESTS_FILE =
+  process.env.CHANGED_TESTS_FILE || "changed-tests.txt";
 const EXECUTION_FILE =
   process.env.REGRESSION_EXECUTION_FILE || "regression-execution.json";
 const SUMMARY_TEXT_FILE = process.env.REGRESSION_SUMMARY_FILE || "summary.txt";
@@ -84,11 +85,14 @@ function collectTests(suites = [], suiteTitles = []) {
   const tests = [];
 
   for (const suite of suites) {
-    const nextTitles = suite.title ? [...suiteTitles, suite.title] : suiteTitles;
+    const nextTitles = suite.title
+      ? [...suiteTitles, suite.title]
+      : suiteTitles;
 
     for (const spec of suite.specs || []) {
       for (const test of spec.tests || []) {
-        const status = test.status || test.outcome || finalResultStatus(test.results);
+        const status =
+          test.status || test.outcome || finalResultStatus(test.results);
         const projectName = test.projectName || test.projectId || "";
         const title = fullTitle(nextTitles, spec.title, projectName);
         const error = firstError(test.results);
@@ -216,10 +220,16 @@ function formatTextSummary(summary) {
     `GitHub Actions Run: ${summary.runUrl}`,
     "",
     `Changed test files (${summary.changedTests.length}):`,
-    formatList(summary.changedTests, "No changed test files detected.").trimEnd(),
+    formatList(
+      summary.changedTests,
+      "No changed test files detected.",
+    ).trimEnd(),
     "",
     `Executed test files (${summary.executedTests.length}):`,
-    formatList(summary.executedTests, "No impacted test files executed.").trimEnd(),
+    formatList(
+      summary.executedTests,
+      "No impacted test files executed.",
+    ).trimEnd(),
     "",
     `Passed tests (${summary.passedTests.length}):`,
     formatList(
