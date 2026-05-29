@@ -13,6 +13,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Send pipeline started notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+
+          subject: >
+            AI Regression Started - ${{ github.repository }}
+
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.EMAIL_USERNAME }}
+
+          body: |
+            AI Selective Regression pipeline has started.
+
+            Repository:
+            ${{ github.repository }}
+
+            Branch:
+            ${{ github.ref_name }}
+
+            Triggered by:
+            ${{ github.actor }}
+
+            Commit:
+            ${{ github.sha }}
+
+            GitHub Actions Run:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -66,8 +100,14 @@ jobs:
           echo "Branch: ${{ github.ref_name }}" >> summary.txt
           echo "Commit: ${{ github.sha }}" >> summary.txt
           echo "Triggered by: ${{ github.actor }}" >> summary.txt
+          echo "Run URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> summary.txt
 
-      - name: Send email notification
+      - name: Detect flaky tests
+        if: always()
+        run: |
+          node framework/scripts/flaky-quarantine.js
+
+      - name: Send final regression report
         if: always()
         uses: dawidd6/action-send-mail@v3
         with:
@@ -79,12 +119,33 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
 
           subject: >
-            Playwright Regression - ${{ job.status }}
+            AI Selective Regression - ${{ job.status }}
 
           to: ${{ secrets.NOTIFICATION_EMAIL }}
           from: ${{ secrets.EMAIL_USERNAME }}
 
-          body: file://summary.txt
+          body: |
+            AI Selective Regression completed.
+
+            Status:
+            ${{ job.status }}
+
+            Repository:
+            ${{ github.repository }}
+
+            Branch:
+            ${{ github.ref_name }}
+
+            Triggered by:
+            ${{ github.actor }}
+
+            GitHub Actions Run:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Detailed report attached.
+
+          attachments: |
+            summary.txt
 
       - name: Fail workflow if tests failed
         if: steps.playwright.outcome == 'failure'
