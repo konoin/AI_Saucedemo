@@ -29,7 +29,7 @@ jobs:
       - name: Detect changed Playwright tests
         id: changed-tests
         run: |
-          git fetch origin main
+          git fetch origin main:refs/remotes/origin/main
 
           node framework/scripts/find-changed-tests.js --base origin/main --head HEAD
 
