@@ -8,6 +8,15 @@
     "skipLibCheck": true,
     "noEmit": true,
     "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@pages/*": ["framework/pages/*"],
+      "@fixtures/*": ["framework/fixtures/*"],
+      "@data/*": ["framework/data/*"],
+      "@constants/*": ["framework/constants/*"],
+      "@types": ["framework/types/index.ts"],
+      "@types/*": ["framework/types/*"]
+    },
     "types": ["node", "@playwright/test"]
   },
   "include": ["framework/**/*.ts", "playwright.config.ts"]
