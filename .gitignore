@@ -4,5 +4,8 @@ node_modules/
 /test-results/
 /playwright-report/
 /blob-report/
+/changed-tests.txt
+/changed-tests.json
+/qa-regression-summary.txt
 /playwright/.cache/
 /playwright/.auth/
