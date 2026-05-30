@@ -1,31 +1,26 @@
-import { test, expect } from '@playwright/test';
-import { standardUser } from '../data/users';
+import { test, expect } from '@fixtures/base.fixture';
+import { standardUser } from '@data/users';
+import { defaultCheckoutCustomer } from '@data/checkout-customer';
 
-test('successful checkout flow', async ({ page }) => {
-  await page.goto('https://www.saucedemo.com/');
+const ORDER_COMPLETE_MESSAGE = 'Thank you for your order!';
 
-  await page.locator('[data-test="username"]').fill(standardUser.username);
-  await page.locator('[data-test="password"]').fill(standardUser.password);
-
-  await page.locator('[data-test="login-button"]').click();
+test('successful checkout flow', async ({
+  page,
+  loginPage,
+  inventoryPage,
+  cartPage,
+  checkoutPage,
+  checkoutCompletePage,
+}) => {
+  await loginPage.login(standardUser.username, standardUser.password);
 
   await expect(page).toHaveURL(/inventory/);
 
-  await page.locator('[data-test="add-to-cart-sauce-labs-backpack"]').click();
-
-  await page.locator('[data-test="shopping-cart-link"]').click();
-
-  await page.locator('[data-test="checkout"]').click();
-
-  await page.locator('[data-test="firstName"]').fill('John');
-  await page.locator('[data-test="lastName"]').fill('Doe');
-  await page.locator('[data-test="postalCode"]').fill('12345');
-
-  await page.locator('[data-test="continue"]').click();
-
-  await page.locator('[data-test="finish"]').click();
-
-  await expect(page.getByTestId('complete-header')).toContainText(
-    'Thank you for your order!',
-  );
+  await inventoryPage.addBackpackToCart();
+  await inventoryPage.openCart();
+  await cartPage.proceedToCheckout();
+  await checkoutPage.fillShippingInfo(defaultCheckoutCustomer);
+  await checkoutPage.continueCheckout();
+  await checkoutPage.finishOrder();
+  await checkoutCompletePage.expectThankYouMessage(ORDER_COMPLETE_MESSAGE);
 });
