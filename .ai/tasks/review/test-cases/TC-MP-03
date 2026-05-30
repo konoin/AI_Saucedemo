@@ -1,0 +1,19 @@
+# MP-03 - Attempt checkout with empty checkout form (all fields blank)
+
+## Priority
+High
+
+## Type
+Negative
+
+## Steps
+
+1. Login with valid credentials.
+2. Add any product to cart and open cart.
+3. Click 'Checkout'.
+4. On the checkout information page, leave First Name, Last Name, and Postal Code fields empty.
+5. Click 'Continue'.
+
+## Expected Result
+
+System prevents progression to the next step and displays a validation error indicating required fields are missing (at minimum an error such as 'Error: First Name is required' or a visible form validation message). User remains on the checkout information page.
