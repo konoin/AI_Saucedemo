@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,15 +31,19 @@ jobs:
       - name: Detect changed Playwright tests
         id: changed-tests
         run: |
-          git fetch origin main
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            DIFF_RANGE="${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+          else
+            DIFF_RANGE="HEAD~1 HEAD"
+          fi
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- $DIFF_RANGE
 
           echo "Detected tests:"
-          echo "$CHANGED_TESTS"
+          node -e "const fs = require('fs'); process.stdout.write(fs.existsSync('changed-tests.txt') ? fs.readFileSync('changed-tests.txt', 'utf8') : '')"
 
           echo "tests<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
+          node -e "const fs = require('fs'); process.stdout.write(fs.existsSync('changed-tests.txt') ? fs.readFileSync('changed-tests.txt', 'utf8') : '')" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run changed Playwright tests
@@ -57,12 +63,33 @@ jobs:
         run: |
           echo "No Playwright test changes detected."
 
+      - name: Generate lightweight QA summary
+        if: always()
+        run: |
+          npm run regression:report
+
+          if [ -f qa-regression-summary.txt ]; then
+            cat qa-regression-summary.txt >> $GITHUB_STEP_SUMMARY
+          fi
+
       - name: Upload Playwright execution log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-output
           path: test-output.txt
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload lightweight QA summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: |
+            qa-regression-summary.txt
+            changed-tests.txt
+            changed-tests.json
           retention-days: 30
           if-no-files-found: ignore
 
