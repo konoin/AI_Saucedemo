@@ -7,3 +7,8 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 .env
+changed-tests.txt
+changed-tests.json
+qa-regression-summary.txt
+test-output.txt
+playwright-exit-code.txt

@@ -1,126 +1,222 @@
-const fs = require("fs");
+const fs = require('fs');
 
-const reportPath = "playwright-report/results.json";
+const REPORT_PATH = 'playwright-report/results.json';
+const CHANGED_TESTS_JSON = 'changed-tests.json';
+const CHANGED_TESTS_TXT = 'changed-tests.txt';
+const SUMMARY_PATH = 'qa-regression-summary.txt';
 
-if (!fs.existsSync(reportPath)) {
-  console.error("Playwright JSON report not found.");
-  process.exit(1);
+function readChangedTests() {
+  if (fs.existsSync(CHANGED_TESTS_JSON)) {
+    const data = JSON.parse(fs.readFileSync(CHANGED_TESTS_JSON, 'utf-8'));
+
+    return {
+      added: data.added || [],
+      modified: data.modified || [],
+      all: data.all || [],
+    };
+  }
+
+  if (!fs.existsSync(CHANGED_TESTS_TXT)) {
+    return { added: [], modified: [], all: [] };
+  }
+
+  const all = fs
+    .readFileSync(CHANGED_TESTS_TXT, 'utf-8')
+    .split('\n')
+    .map((file) => file.trim())
+    .filter(Boolean);
+
+  return { added: [], modified: all, all };
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+function normalizeSpecPath(filePath = '') {
+  const normalized = filePath.replace(/\\/g, '/');
 
-const failedTestsMap = new Map();
+  if (normalized.startsWith('framework/tests/')) {
+    return normalized;
+  }
 
-function classifyError(message = "") {
-  const lower = message.toLowerCase();
+  if (normalized.includes('/framework/tests/')) {
+    return normalized.slice(normalized.indexOf('framework/tests/'));
+  }
+
+  return `framework/tests/${normalized.replace(/^\/+/, '')}`;
+}
+
+function possibleReason(message = '', status = '') {
+  const lower = `${message} ${status}`.toLowerCase();
 
   if (
-    lower.includes("locator") ||
-    lower.includes("element(s) not found") ||
-    lower.includes("waiting for locator")
+    lower.includes('locator') ||
+    lower.includes('element(s) not found') ||
+    lower.includes('strict mode violation') ||
+    lower.includes('waiting for')
   ) {
-    return "UI Locator Failure";
+    return 'locator not found';
   }
 
-  if (lower.includes("timeout") || lower.includes("waiting for response")) {
-    return "Timeout Failure";
+  if (
+    lower.includes('expect') ||
+    lower.includes('assert') ||
+    lower.includes('tohavetext') ||
+    lower.includes('tocontaintext') ||
+    lower.includes('tobevisible')
+  ) {
+    return 'assertion mismatch';
   }
 
-  if (lower.includes("net::err") || lower.includes("econnreset")) {
-    return "Network Failure";
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'timeout exceeded';
   }
 
-  if (lower.includes("expect(") || lower.includes("tocontaintext")) {
-    return "Assertion Failure";
+  if (
+    lower.includes('net::err') ||
+    lower.includes('econnreset') ||
+    lower.includes('api') ||
+    lower.includes('network') ||
+    lower.includes('response')
+  ) {
+    return 'API/network failure';
   }
 
-  return "Unknown Failure";
+  if (
+    lower.includes('navigation') ||
+    lower.includes('page.goto') ||
+    lower.includes('tohaveurl')
+  ) {
+    return 'navigation failure';
+  }
+
+  return 'test execution failure';
 }
 
-function extractTests(suites = []) {
+function collectSpecOutcomes(suites = [], changedTests = new Set(), outcomes = new Map()) {
   for (const suite of suites) {
-    if (suite.specs) {
-      for (const spec of suite.specs) {
-        for (const test of spec.tests) {
-          for (const result of test.results) {
-            if (result.status === "failed") {
-              const rawError = result.error?.message || "Unknown error";
-              const errorMessage = rawError.split("\n").slice(0, 6).join("\n");
+    for (const spec of suite.specs || []) {
+      const specPath = normalizeSpecPath(spec.file);
 
-              const key = `${spec.file}-${spec.title}`;
+      if (!changedTests.has(specPath)) {
+        continue;
+      }
 
-              if (!failedTestsMap.has(key)) {
-                failedTestsMap.set(key, {
-                  title: spec.title,
-                  file: spec.file,
-                  error: errorMessage,
-                  type: classifyError(errorMessage),
-                  browsers: [],
-                });
-              }
+      const failedMessages = [];
+      let hasUnexpectedStatus = false;
+      let hasExecutedResult = false;
 
-              failedTestsMap.get(key).browsers.push(result.workerIndex);
-            }
-          }
+      for (const test of spec.tests || []) {
+        const results = test.results || [];
+        const finalResult = results[results.length - 1];
+
+        if (finalResult) {
+          hasExecutedResult = true;
+        }
+
+        const finalStatus = finalResult?.status || test.outcome || '';
+        const failedOutcome = test.outcome === 'unexpected';
+        const failedStatus = ['failed', 'timedOut', 'interrupted'].includes(finalStatus);
+
+        if (failedOutcome || failedStatus) {
+          hasUnexpectedStatus = true;
+          failedMessages.push(finalResult?.error?.message || finalStatus);
         }
       }
+
+      outcomes.set(specPath, {
+        failed: hasUnexpectedStatus,
+        reason: possibleReason(failedMessages.join('\n')),
+        executed: hasExecutedResult,
+      });
     }
 
-    if (suite.suites) {
-      extractTests(suite.suites);
-    }
+    collectSpecOutcomes(suite.suites || [], changedTests, outcomes);
   }
+
+  return outcomes;
 }
 
-const failedTests = Array.from(failedTestsMap.values());
+function renderList(files) {
+  if (files.length === 0) {
+    return ['None detected.'];
+  }
 
-let summary = "";
-
-const changedTestsPath = "changed-tests.txt";
-let changedTests = [];
-if (fs.existsSync(changedTestsPath)) {
-  changedTests = fs
-    .readFileSync(changedTestsPath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
+  return files.map((file) => `* ${file}`);
 }
 
-summary += "AI Selective Regression Report\n\n";
+function renderSection(title, files, outcomes) {
+  const lines = [`${title}:`, ...renderList(files), '', 'Result:'];
 
-summary += `Repository: ${process.env.GITHUB_REPOSITORY}\n`;
-summary += `Branch: ${process.env.GITHUB_REF_NAME}\n`;
-summary += `Triggered by: ${process.env.GITHUB_ACTOR}\n`;
-summary += `Date: ${new Date().toISOString()}\n\n`;
+  if (files.length === 0) {
+    lines.push('No in-scope tests in this category.');
+    return lines;
+  }
 
-summary += `Changed Tests:\n`;
+  const failed = files.filter((file) => outcomes.get(file)?.failed);
+  const missing = files.filter((file) => !outcomes.has(file));
 
-if (changedTests.length === 0) {
-  summary += "No changed tests detected\n\n";
-} else {
-  changedTests.forEach((test) => {
-    summary += `- ${test}\n`;
-  });
+  if (failed.length === 0 && missing.length === 0) {
+    lines.push(
+      title === 'Added tests'
+        ? 'All newly added tests passed successfully.'
+        : 'Modified tests passed successfully without detected issues.',
+    );
+    return lines;
+  }
 
-  summary += "\n";
+  if (failed.length > 0) {
+    lines.push(
+      title === 'Added tests'
+        ? 'New tests failed during execution.'
+        : 'Regression failed.',
+      '',
+      'Possible reasons:',
+    );
+
+    const reasons = Array.from(
+      new Set(failed.map((file) => outcomes.get(file)?.reason || 'test execution failure')),
+    );
+    reasons.forEach((reason) => lines.push(`* ${reason}`));
+  }
+
+  if (missing.length > 0) {
+    if (failed.length > 0) {
+      lines.push('');
+    }
+
+    lines.push('Some changed tests did not produce execution results.');
+  }
+
+  return lines;
 }
 
-if (failedTests.length === 0) {
-  summary += "RESULT: PASSED\n\n";
-  summary += "All impacted Playwright tests passed successfully.\n";
-} else {
-  summary += "RESULT: FAILED\n\n";
+const changedTests = readChangedTests();
+const changedTestSet = new Set(changedTests.all);
+let outcomes = new Map();
 
-  summary += `Failed tests count: ${failedTests.length}\n\n`;
-
-  failedTests.forEach((test, index) => {
-    summary += `${index + 1}. ${test.title}\n`;
-    summary += `File: ${test.file}\n`;
-    summary += `Failure Type: ${test.type}\n`;
-    summary += `Error: ${test.error}\n\n`;
-  });
+if (fs.existsSync(REPORT_PATH) && changedTestSet.size > 0) {
+  const report = JSON.parse(fs.readFileSync(REPORT_PATH, 'utf-8'));
+  outcomes = collectSpecOutcomes(report.suites || [], changedTestSet);
 }
 
-summary += `GitHub Actions Run:\n`;
-summary += `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
+const lines = [
+  'Lightweight QA Regression Summary',
+  '',
+  ...renderSection('Added tests', changedTests.added, outcomes),
+  '',
+  ...renderSection('Modified tests', changedTests.modified, outcomes),
+];
 
+if (changedTests.all.length === 0) {
+  lines.push('', 'Overall result:', 'No regression execution required.');
+}
+
+if (process.env.GITHUB_RUN_ID && process.env.GITHUB_REPOSITORY) {
+  lines.push(
+    '',
+    'GitHub Actions Run:',
+    `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+  );
+}
+
+const summary = `${lines.join('\n')}\n`;
+fs.writeFileSync(SUMMARY_PATH, summary);
 console.log(summary);

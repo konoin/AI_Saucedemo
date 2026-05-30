@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,31 +33,53 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- origin/main...HEAD
 
           echo "Detected tests:"
-          echo "$CHANGED_TESTS"
+          cat changed-tests.txt
 
-          echo "tests<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -s changed-tests.txt ]; then
+            echo "has-tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-tests=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run changed Playwright tests
         id: playwright
-        if: steps.changed-tests.outputs.tests != ''
-        continue-on-error: true
+        if: steps.changed-tests.outputs.has-tests == 'true'
         run: |
           echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          cat changed-tests.txt
 
-          echo "${{ steps.changed-tests.outputs.tests }}" \
-            | xargs npx playwright test --project=chromium \
-            > test-output.txt 2>&1
+          set +e
+          npx playwright test --project=chromium $(tr '\n' ' ' < changed-tests.txt) > test-output.txt 2>&1
+          PLAYWRIGHT_EXIT_CODE=$?
+          set -e
+
+          echo "$PLAYWRIGHT_EXIT_CODE" > playwright-exit-code.txt
 
       - name: No changed tests
-        if: steps.changed-tests.outputs.tests == ''
+        if: steps.changed-tests.outputs.has-tests == 'false'
         run: |
           echo "No Playwright test changes detected."
+          echo "0" > playwright-exit-code.txt
+
+      - name: Generate lightweight QA summary
+        if: always()
+        run: npm run regression:report
+
+      - name: Publish lightweight QA summary
+        if: always()
+        run: cat qa-regression-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload lightweight QA summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: qa-regression-summary.txt
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Upload Playwright execution log
         if: always()
@@ -85,5 +109,8 @@ jobs:
           if-no-files-found: ignore
 
       - name: Fail workflow if tests failed
-        if: steps.playwright.outcome == 'failure'
-        run: exit 1
+        if: always()
+        run: |
+          if [ "$(cat playwright-exit-code.txt)" != "0" ]; then
+            exit 1
+          fi
