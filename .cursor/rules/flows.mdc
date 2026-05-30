@@ -1,0 +1,54 @@
+---
+description: Flow rules for business journeys
+globs: framework/flows/**/*.ts
+alwaysApply: false
+---
+
+# Flow rules
+
+Apply to `framework/flows/**/*.ts`.
+
+## Responsibility
+
+- **Orchestrate** Page Objects
+- Represent **business journeys** reused across specs
+- May call multiple pages in sequence
+
+## Must not contain
+
+- Locators (`page.locator`, `getByTestId` in flows)
+- Assertions (`expect()`)
+- Direct `Page` usage — receive Page Objects via constructor
+
+## Structure
+
+```typescript
+import { LoginPage } from '@pages/LoginPage';
+import type { User } from '@types';
+
+export class LoginFlow {
+  constructor(private readonly loginPage: LoginPage) {}
+
+  async loginAs(user: User) {
+    await this.loginPage.login(user.username, user.password);
+  }
+}
+```
+
+## Naming
+
+- File: `<feature>.flow.ts`
+- Class: `<Feature>Flow`
+- Methods: verb phrases (`loginAs`, `completeOrder`)
+
+## Existing flows (reuse)
+
+- `LoginFlow` — `framework/flows/login.flow.ts`
+- `CheckoutFlow` — `framework/flows/checkout.flow.ts`
+
+Extend these or add new flows — do not copy journey steps into specs or pages.
+
+## Test data
+
+- Import users/customers from `@data/*` and `@types` in flows when needed
+- Do not hardcode credentials in flows

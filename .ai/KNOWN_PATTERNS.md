@@ -1,170 +1,225 @@
 # Known Patterns
 
-Long-term AI memory for this repository. Follow these patterns before inventing new structure.
+Real patterns from this repository. Reuse these — do not invent parallel implementations.
 
 ---
 
-## Authentication Flow
+## Current Page Objects
 
-**Goal:** Log in as a known user and land on the inventory page.
+### `LoginPage` — `framework/pages/LoginPage.ts`
 
-| Piece | Location |
-|-------|----------|
-| Page Object | `LoginPage` — `framework/pages/LoginPage.ts` |
-| Flow | `LoginFlow.loginAs(user)` — `framework/flows/login.flow.ts` |
-| Test data | `standardUser` — `framework/data/users.ts` |
-| Selectors | `Selectors.login` — `framework/constants/selectors.ts` |
+```typescript
+async login(username: string, password: string) {
+  await this.page.goto('/');
+  await this.page.getByTestId(loginSelectors.username).fill(username);
+  await this.page.getByTestId(loginSelectors.password).fill(password);
+  await this.page.getByTestId(loginSelectors.loginButton).click();
+}
+```
 
-**Steps:**
+Uses `loginSelectors` from `@constants/selectors` (alias of `Selectors.login`).
 
-1. `LoginPage.login(username, password)` — navigates to `/`, fills credentials, submits
-2. Prefer `LoginFlow.loginAs(standardUser)` in specs to avoid duplicating credentials
-3. Assert in the **test**: `await expect(page).toHaveURL(/inventory/)`
+### `InventoryPage` — `framework/pages/InventoryPage.ts`
 
-**Do not** put URL assertions inside flows or page objects.
+- `addBackpackToCart()` — clicks `Selectors.inventory.addToCartBackpack`
+- `openCart()` — clicks `Selectors.inventory.shoppingCartLink`
 
----
+### `CartPage` — `framework/pages/CartPage.ts`
 
-## Checkout Flow
+- `proceedToCheckout()` — clicks `Selectors.cart.checkout`
 
-**Goal:** Add backpack, open cart, complete checkout through confirmation screen (assertion in test).
+### `CheckoutPage` — `framework/pages/CheckoutPage.ts`
 
-| Piece | Location |
-|-------|----------|
-| Pages | `InventoryPage`, `CartPage`, `CheckoutPage`, `CheckoutCompletePage` |
-| Flow | `CheckoutFlow.completeOrder(customer)` — `framework/flows/checkout.flow.ts` |
-| Test data | `defaultCheckoutCustomer` — `framework/data/checkout-customer.ts` |
-| Selectors | `Selectors.inventory`, `Selectors.cart`, `Selectors.checkout` |
+- `fillShippingInfo(customer: CheckoutCustomer)`
+- `continueCheckout()`
+- `finishOrder()`
 
-**Flow steps (no assertions):**
+### `CheckoutCompletePage` — `framework/pages/CheckoutCompletePage.ts`
 
-1. `InventoryPage.addBackpackToCart()`
-2. `InventoryPage.openCart()`
-3. `CartPage.proceedToCheckout()`
-4. `CheckoutPage.fillShippingInfo(customer)`
-5. `CheckoutPage.continueCheckout()`
-6. `CheckoutPage.finishOrder()`
-
-**Assertion (test only):**
-
-- `CheckoutCompletePage.expectThankYouMessage('Thank you for your order!')`
+- `expectThankYouMessage(message: string)` — assertion helper used from spec **Assert** phase
 
 ---
 
-## Test Pattern
+## Current Flows
 
-**Imports:**
+### `LoginFlow` — `framework/flows/login.flow.ts`
+
+```typescript
+export class LoginFlow {
+  constructor(private readonly loginPage: LoginPage) {}
+
+  async loginAs(user: User) {
+    await this.loginPage.login(user.username, user.password);
+  }
+}
+```
+
+### `CheckoutFlow` — `framework/flows/checkout.flow.ts`
+
+```typescript
+async completeOrder(customer: CheckoutCustomer) {
+  await this.inventoryPage.addBackpackToCart();
+  await this.inventoryPage.openCart();
+  await this.cartPage.proceedToCheckout();
+  await this.checkoutPage.fillShippingInfo(customer);
+  await this.checkoutPage.continueCheckout();
+  await this.checkoutPage.finishOrder();
+}
+```
+
+No locators. No assertions.
+
+---
+
+## Current Fixtures
+
+### `base.fixture.ts` — `framework/fixtures/base.fixture.ts`
+
+Extends Playwright `test` with:
+
+| Fixture | Type |
+|---------|------|
+| `loginPage` | `LoginPage` |
+| `inventoryPage` | `InventoryPage` |
+| `cartPage` | `CartPage` |
+| `checkoutPage` | `CheckoutPage` |
+| `checkoutCompletePage` | `CheckoutCompletePage` |
+
+Specs import:
 
 ```typescript
 import { test, expect } from '@fixtures/base.fixture';
-import { standardUser } from '@data/users';
-import { LoginFlow } from '@flows/login.flow';
-import { CheckoutFlow } from '@flows/checkout.flow';
 ```
 
-**Structure: Arrange → Act → Assert**
+---
 
-| Phase | Responsibility |
+## Current Selector Registry
+
+### `framework/constants/selectors.ts`
+
+```typescript
+export const Selectors = {
+  login: {
+    username: 'username',
+    password: 'password',
+    loginButton: 'login-button',
+  },
+  inventory: {
+    shoppingCartLink: 'shopping-cart-link',
+    addToCartBackpack: 'add-to-cart-sauce-labs-backpack',
+  },
+  cart: {
+    checkout: 'checkout',
+  },
+  checkout: {
+    firstName: 'firstName',
+    lastName: 'lastName',
+    postalCode: 'postalCode',
+    continueButton: 'continue',
+    finish: 'finish',
+    completeHeader: 'complete-header---123',
+  },
+} as const;
+```
+
+Legacy exports: `loginSelectors`, `inventorySelectors`, `cartSelectors`, `checkoutSelectors`.
+
+Add new keys under the correct namespace before using in pages.
+
+---
+
+## Current Data Layer
+
+### `framework/data/users.ts`
+
+```typescript
+export const standardUser: User = {
+  username: 'standard_user',
+  password: 'secret_sauce',
+};
+```
+
+### `framework/data/checkout-customer.ts`
+
+```typescript
+export const defaultCheckoutCustomer: CheckoutCustomer = {
+  firstName: 'John',
+  lastName: 'Doe',
+  postalCode: '12345',
+};
+```
+
+Types: `@types` → `framework/types/user.ts`, `checkout-customer.ts`, barrel `index.ts`.
+
+---
+
+## Current Test Structure
+
+### `framework/tests/checkout.spec.ts`
+
+```typescript
+test('@critical @smoke @regression successful checkout flow', async ({
+  page,
+  loginPage,
+  inventoryPage,
+  cartPage,
+  checkoutPage,
+  checkoutCompletePage,
+}) => {
+  const loginFlow = new LoginFlow(loginPage);
+  const checkoutFlow = new CheckoutFlow(inventoryPage, cartPage, checkoutPage);
+
+  await loginFlow.loginAs(standardUser);
+  await expect(page).toHaveURL(/inventory/);
+
+  await checkoutFlow.completeOrder(defaultCheckoutCustomer);
+
+  await checkoutCompletePage.expectThankYouMessage(ORDER_COMPLETE_MESSAGE);
+});
+```
+
+| Phase | Implementation |
 |-------|----------------|
-| Arrange | Fixtures provide pages; flows receive page instances |
-| Act | Flows and/or page methods execute the journey |
-| Assert | `expect()` only in the spec (or completion page helper used from spec) |
+| Arrange | Fixtures + `LoginFlow` / `CheckoutFlow` instances |
+| Act | `loginFlow.loginAs`, `checkoutFlow.completeOrder` |
+| Assert | `expect(page).toHaveURL`, `expectThankYouMessage` |
 
-**Tags:**
+### Example skeletons (not executed)
 
-- `@smoke` — fast confidence check
-- `@regression` — broader regression suite
-- `@critical` — business-critical path
-
-**Example:** `framework/tests/checkout.spec.ts`
-
-**Run by tag:**
-
-```bash
-npm run test:smoke
-npm run test:regression
-npm run test:critical
-```
+- `framework/tests/auth/login.spec.example.ts`
+- `framework/tests/inventory/inventory.spec.example.ts`
+- `framework/tests/cart/cart.spec.example.ts`
 
 ---
 
 ## Path aliases
 
-| Alias | Use |
-|-------|-----|
-| `@pages/*` | Page Objects |
-| `@flows/*` | Business flows |
-| `@fixtures/*` | Playwright fixtures |
-| `@data/*` | Users, customers |
-| `@constants/*` | Selector registry |
-| `@types` | Shared TypeScript types |
+| Alias | Path |
+|-------|------|
+| `@pages/*` | `framework/pages/*` |
+| `@flows/*` | `framework/flows/*` |
+| `@fixtures/*` | `framework/fixtures/*` |
+| `@data/*` | `framework/data/*` |
+| `@constants/*` | `framework/constants/*` |
+| `@types` | `framework/types/index.ts` |
 
 ---
 
-## Test folder strategy
+## Tags and CI
 
-| Folder | When to use |
-|--------|----------------|
-| `framework/tests/auth/` | Login, logout, session |
-| `framework/tests/inventory/` | Products, sort, add-to-cart |
-| `framework/tests/cart/` | Cart page behavior |
-| `framework/tests/checkout/` | Checkout-only specs (future) |
-| Root `framework/tests/` | Legacy or cross-domain specs |
-
-Copy `*.spec.example.ts` → rename to `*.spec.ts` → uncomment.  
-**Do not** commit `.example.ts` as runnable tests.
-
----
-
-## Flow strategy
-
-| Use a flow when | Skip flow when |
-|-----------------|------------------|
-| Multiple pages in one journey | Single page action |
-| Same journey in 2+ specs | One-off 1-step action |
-
-Flows: **no assertions**. Specs: **all expects**.
-
----
-
-## Tagging strategy
-
-```
-test('@critical @smoke @regression description', async () => { ... });
-```
-
-| Tag | Suite command |
-|-----|----------------|
+| Tag | Command |
+|-----|---------|
 | `@smoke` | `npm run test:smoke` |
 | `@regression` | `npm run test:regression` |
 | `@critical` | `npm run test:critical` |
 
-CI smoke workflow runs `@smoke` on push to `main`.
-
 ---
 
-## Reporting strategy
+## Adding new coverage
 
-After `npm test`, read `test-results/ai-report.json`:
-
-```json
-{
-  "status": "passed",
-  "tests": [{ "name": "...", "tags": ["@smoke"], "status": "passed", "duration": 987 }]
-}
-```
-
-Use for agents, dashboards, and PR summaries. HTML report remains for humans.
-
----
-
-## Adding something new
-
-1. MCP explore → `docs/mcp-locator-workflow.md`
-2. Add selectors to `Selectors` in `framework/constants/selectors.ts`
-3. Add or extend a Page Object
-4. Add a Flow if the journey is reused across tests
-5. Create spec under the correct `framework/tests/<domain>/` folder
-6. Tag + Arrange/Act/Assert
-7. Copy from `.ai/templates/` when generating files
-8. Verify `test-results/ai-report.json`
+1. Add to `Selectors` in `framework/constants/selectors.ts`
+2. Extend or add Page Object in `framework/pages/`
+3. Add Flow in `framework/flows/` if journey repeats
+4. Add data in `framework/data/` if needed
+5. Add spec under `framework/tests/<domain>/` with tags
+6. Follow `.ai/AUTOMATION_GUIDE.md` and `.ai/PROMPTS/`

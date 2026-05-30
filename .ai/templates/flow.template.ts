@@ -1,15 +1,14 @@
-import { ExamplePage } from '@pages/ExamplePage';
+import { LoginPage } from '@pages/LoginPage';
+import type { User } from '@types';
 
 /**
- * Canonical flow template.
- * Copy to framework/flows/<name>.flow.ts
- *
- * Rules: orchestrate Page Objects only — no assertions.
+ * Template: framework/flows/<feature>.flow.ts
+ * Rules: orchestrate pages only — no locators, no assertions.
  */
 export class ExampleFlow {
-  constructor(private readonly examplePage: ExamplePage) {}
+  constructor(private readonly loginPage: LoginPage) {}
 
-  async runExampleWorkflow(input: string) {
-    await this.examplePage.performPrimaryAction(input);
+  async signInAs(user: User) {
+    await this.loginPage.login(user.username, user.password);
   }
 }

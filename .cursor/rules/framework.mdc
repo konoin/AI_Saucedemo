@@ -1,19 +1,75 @@
 ---
-description: AI Saucedemo Playwright framework conventions
+description: AI Saucedemo Playwright framework — global rules
 alwaysApply: true
 ---
 
-# Framework rules
+# Framework rules (global)
 
-- Use **TypeScript** for all framework and test code.
-- Use **Playwright** (`@playwright/test`) — no other runners.
-- Use **Page Object Model**: UI in `framework/pages/` and `framework/components/`.
-- Prefer **fixtures** from `framework/fixtures/` for shared setup.
-- Store selectors in `framework/constants/selectors.ts`; use `getByTestId()`.
-- Sauce Demo uses `data-test` — configured as `testIdAttribute` in `playwright.config.ts`.
-- Store test data in `framework/data/`; types in `framework/types/`.
-- **Avoid XPath** and brittle CSS selectors.
-- **No hardcoded waits** (`waitForTimeout`) without justification.
-- Specs live in `framework/tests/` only.
-- Do not add an API layer unless explicitly requested.
-- Preserve `.cursor/mcp.json` Playwright MCP configuration.
+## Stack
+
+- **TypeScript only** — no JavaScript test files
+- **Playwright only** (`@playwright/test`) — no other runners
+- Preserve `.cursor/mcp.json` — do not modify MCP configuration
+
+## Reuse before create
+
+Before generating code:
+
+1. **Search** existing `framework/pages/`, `framework/flows/`, `framework/fixtures/`, `framework/constants/selectors.ts`
+2. **Reuse** existing Page Objects, Flows, Fixtures, and `Selectors`
+3. **Extend** existing classes — do not duplicate locators or business logic
+4. Prefer **composition** over duplication
+
+## Architecture (do not move or rename)
+
+```
+framework/
+├── pages/
+├── flows/
+├── fixtures/
+├── data/
+├── constants/
+├── tests/
+└── types/
+```
+
+## Path aliases
+
+| Alias | Use |
+|-------|-----|
+| `@pages/*` | Page Objects |
+| `@flows/*` | Flows |
+| `@fixtures/*` | Fixtures |
+| `@data/*` | Test data |
+| `@constants/*` | `selectors.ts` |
+| `@types` | Shared types |
+
+## Locator priority
+
+1. `getByTestId()` — keys from `Selectors` (`data-test` via `testIdAttribute` in config)
+2. `getByRole()`
+3. `getByLabel()`
+
+## Forbidden
+
+- XPath
+- `nth-child` / positional CSS
+- Brittle CSS class chains
+- Inline locators in specs when a Page Object exists
+- Duplicating selectors outside `framework/constants/selectors.ts`
+- Hardcoded `waitForTimeout` without justification
+- New architecture layers (API layer, etc.) unless explicitly requested
+
+## Do not change without approval
+
+- GitHub Actions workflows
+- `playwright.config.ts` reporters
+- Existing passing tests
+- Folder structure
+
+## AI references
+
+- Patterns: `.ai/KNOWN_PATTERNS.md`
+- Automation: `.ai/AUTOMATION_GUIDE.md`
+- Prompts: `.ai/PROMPTS/`
+- Templates: `.ai/templates/`

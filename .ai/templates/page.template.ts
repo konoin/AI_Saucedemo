@@ -1,18 +1,26 @@
-import { Page } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 import { Selectors } from '@constants/selectors';
 
 /**
- * Canonical Page Object template.
- * Copy to framework/pages/<Screen>Page.ts and rename.
+ * Template: framework/pages/<Screen>Page.ts
+ * Rules: atomic methods, readonly locators, no assertions, no flows.
  */
 export class ExamplePage {
-  constructor(private readonly page: Page) {}
+  readonly exampleField: Locator;
+
+  constructor(private readonly page: Page) {
+    this.exampleField = page.getByTestId(Selectors.login.username);
+  }
 
   async goto() {
     await this.page.goto('/');
   }
 
-  async performPrimaryAction(value: string) {
-    await this.page.getByTestId(Selectors.login.username).fill(value);
+  async fillExampleField(value: string) {
+    await this.exampleField.fill(value);
+  }
+
+  async clickSubmit() {
+    await this.page.getByTestId(Selectors.login.loginButton).click();
   }
 }

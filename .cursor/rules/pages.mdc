@@ -1,16 +1,55 @@
 ---
-description: Rules for Page Objects
+description: Page Object rules
 globs: framework/pages/**/*.ts
 alwaysApply: false
 ---
 
 # Page object rules
 
-- One class per page/screen in `framework/pages/`.
-- Constructor: `constructor(private readonly page: Page)`.
-- Import selector keys from `framework/constants/selectors.ts`.
-- Use `page.getByTestId()` for Sauce Demo elements.
-- Methods represent **user actions**; return `Promise<void>` unless returning data.
-- Do not put `expect()` assertions inside Page Objects.
-- Use `page.goto('/')` or relative paths — `baseURL` is set in Playwright config.
-- **Avoid XPath** and raw CSS class selectors in page classes.
+Apply to `framework/pages/**/*.ts`.
+
+## Responsibility
+
+- **Locators** — via `Selectors` from `@constants/selectors`
+- **UI actions** — atomic interactions only
+- **No assertions** — except established completion helpers called from specs (e.g. `CheckoutCompletePage.expectThankYouMessage`)
+- **No business logic** — multi-step journeys belong in `framework/flows/`
+- **No flows** — pages do not import flows
+
+## Structure
+
+```typescript
+import { Page, Locator } from '@playwright/test';
+import { Selectors } from '@constants/selectors';
+
+export class ExamplePage {
+  readonly usernameInput: Locator;
+
+  constructor(private readonly page: Page) {
+    this.usernameInput = page.getByTestId(Selectors.login.username);
+  }
+}
+```
+
+- Constructor: `constructor(private readonly page: Page)`
+- Prefer **`readonly` locators** in constructor when reused across methods
+- Use `page.getByTestId(Selectors.<namespace>.<key>)` or legacy `loginSelectors` exports
+
+## Methods
+
+- Methods must be **atomic** (one user action per method)
+- Good: `fillUsername()`, `fillPassword()`, `clickLogin()`, `addBackpackToCart()`
+- Bad: `completeCheckout()`, `loginAndCheckout()` — use **Flows** instead
+- Return `Promise<void>` unless returning data
+- Navigation: `page.goto('/')` — `baseURL` is configured
+
+## Locators
+
+- Do not hardcode `data-test` strings — use `Selectors`
+- Forbidden: XPath, `nth-child`, brittle CSS
+
+## Existing pages (reuse, do not duplicate)
+
+`LoginPage`, `InventoryPage`, `CartPage`, `CheckoutPage`, `CheckoutCompletePage`
+
+When extending `LoginPage`, prefer new atomic methods alongside existing `login()` rather than a second login implementation elsewhere.

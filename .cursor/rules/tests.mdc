@@ -1,16 +1,63 @@
 ---
-description: Rules for Playwright test specs
+description: Playwright test spec rules
 globs: framework/tests/**/*.ts
 alwaysApply: false
 ---
 
 # Test spec rules
 
-- Import `test` and `expect` from `@playwright/test` or from `framework/fixtures/base.fixture` when using fixtures.
-- Keep specs **thin**: scenario flow and assertions only.
-- Use credentials from `framework/data/users.ts` — never hardcode passwords in specs.
-- Prefer Page Objects and components over inline `page.locator()` when available.
-- Use `getByTestId()` with keys from `framework/constants/selectors.ts` for new locators.
-- One clear test name describing user-visible outcome.
-- Do not remove or disable existing tests without explicit approval.
-- Avoid `test.only` in committed code (CI uses `forbidOnly`).
+Apply to `framework/tests/**/*.ts` (not `*.example.ts`).
+
+## Responsibility
+
+Tests represent **business scenarios** — thin wiring, clear assertions.
+
+## Structure: Arrange → Act → Assert
+
+| Phase | Content |
+|-------|---------|
+| Arrange | Fixtures, flow instances, test data from `@data/*` |
+| Act | `LoginFlow`, `CheckoutFlow`, or atomic page methods |
+| Assert | `expect()` **only in the spec** (or completion helper from Assert step) |
+
+## Required imports
+
+```typescript
+import { test, expect } from '@fixtures/base.fixture';
+import { standardUser } from '@data/users';
+import { LoginFlow } from '@flows/login.flow';
+```
+
+- **Always** use `@fixtures/base.fixture` — not raw `@playwright/test` for specs
+- **Always** use `@data/*` for credentials and customer data
+- **Use flows** for multi-step journeys
+
+## Tags (in test title)
+
+- `@smoke`
+- `@critical`
+- `@regression`
+
+Example: `test('@critical @smoke @regression successful checkout flow', ...)`
+
+## Forbidden in specs
+
+- `page.locator()` / `page.getByTestId()` — use Page Objects and Flows
+- Hardcoded passwords or shipping data
+- Duplicating flow steps inline
+- `test.only` in committed code
+
+## Reference spec
+
+`framework/tests/checkout.spec.ts` — canonical pattern.
+
+## File placement
+
+| Domain | Folder |
+|--------|--------|
+| Auth | `framework/tests/auth/` |
+| Inventory | `framework/tests/inventory/` |
+| Cart | `framework/tests/cart/` |
+| Checkout | `framework/tests/checkout/` or root |
+
+See `docs/test-organization.md`.

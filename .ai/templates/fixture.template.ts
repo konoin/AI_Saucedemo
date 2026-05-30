@@ -1,17 +1,17 @@
 import { test as base } from '@playwright/test';
-import { ExamplePage } from '@pages/ExamplePage';
-
-type ExampleFixtures = {
-  examplePage: ExamplePage;
-};
+import { LoginPage } from '@pages/LoginPage';
 
 /**
- * Canonical fixture extension template.
- * Copy to framework/fixtures/ or extend base.fixture.ts.
+ * Template: extend framework/fixtures/base.fixture.ts
+ * Only add fixtures for new Page Objects that specs need injected.
  */
-export const test = base.extend<ExampleFixtures>({
-  examplePage: async ({ page }, use) => {
-    await use(new ExamplePage(page));
+type ExtendedFixtures = {
+  loginPage: LoginPage;
+};
+
+export const test = base.extend<ExtendedFixtures>({
+  loginPage: async ({ page }, use) => {
+    await use(new LoginPage(page));
   },
 });
 
