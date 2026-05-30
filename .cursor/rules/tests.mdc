@@ -1,0 +1,16 @@
+---
+description: Rules for Playwright test specs
+globs: framework/tests/**/*.ts
+alwaysApply: false
+---
+
+# Test spec rules
+
+- Import `test` and `expect` from `@playwright/test` or from `framework/fixtures/base.fixture` when using fixtures.
+- Keep specs **thin**: scenario flow and assertions only.
+- Use credentials from `framework/data/users.ts` — never hardcode passwords in specs.
+- Prefer Page Objects and components over inline `page.locator()` when available.
+- Use `getByTestId()` with keys from `framework/constants/selectors.ts` for new locators.
+- One clear test name describing user-visible outcome.
+- Do not remove or disable existing tests without explicit approval.
+- Avoid `test.only` in committed code (CI uses `forbidOnly`).

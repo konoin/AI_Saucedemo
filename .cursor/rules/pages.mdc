@@ -1,0 +1,16 @@
+---
+description: Rules for Page Objects
+globs: framework/pages/**/*.ts
+alwaysApply: false
+---
+
+# Page object rules
+
+- One class per page/screen in `framework/pages/`.
+- Constructor: `constructor(private readonly page: Page)`.
+- Import selector keys from `framework/constants/selectors.ts`.
+- Use `page.getByTestId()` for Sauce Demo elements.
+- Methods represent **user actions**; return `Promise<void>` unless returning data.
+- Do not put `expect()` assertions inside Page Objects.
+- Use `page.goto('/')` or relative paths — `baseURL` is set in Playwright config.
+- **Avoid XPath** and raw CSS class selectors in page classes.
