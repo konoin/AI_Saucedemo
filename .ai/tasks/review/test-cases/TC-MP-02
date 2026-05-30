@@ -1,0 +1,23 @@
+# MP-02 - Successful checkout with multiple different products
+
+## Priority
+High
+
+## Type
+Positive
+
+## Steps
+
+1. Login with valid credentials.
+2. On products page, add three different products to cart (click 'Add to cart' for each).
+3. Verify cart badge increments accordingly (shows 3).
+4. Open cart and verify all three products appear with correct names and prices.
+5. Click 'Checkout'.
+6. Enter valid checkout information (First Name: 'Alice', Last Name: 'Smith', Postal Code: '90210').
+7. Click 'Continue'.
+8. Verify overview page shows all three items, correct totals and tax calculation.
+9. Click 'Finish'.
+
+## Expected Result
+
+Checkout completes successfully for multiple items. Order confirmation page appears and cart is emptied. Totals and itemization match the selected products.
