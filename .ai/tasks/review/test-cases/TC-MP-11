@@ -1,0 +1,19 @@
+# MP-11 - Cart data loss on session expiration / browser close
+
+## Priority
+Medium
+
+## Type
+Edge
+
+## Steps
+
+1. Login with valid credentials.
+2. Add one or more products to cart.
+3. Simulate session expiration by clearing cookies/localStorage/session storage for the site or closing and reopening the browser (use a new browser session).
+4. Reopen SauceDemo and log in again.
+5. Open the cart page.
+
+## Expected Result
+
+If the application uses session storage, cart may be cleared after session expiration — verify and document behavior. If the app promises persistence across sessions, items should still appear. In all cases, the behavior should be deterministic and not cause data corruption or errors; if cart is lost, application should not crash and should allow normal shopping flow.
