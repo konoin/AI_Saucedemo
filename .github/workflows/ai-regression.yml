@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,8 +32,8 @@ jobs:
         id: changed-tests
         run: |
           git fetch origin main
-
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- origin/main...HEAD
+          CHANGED_TESTS=$(node -e "const data = require('./changed-tests.json'); console.log(data.all.join('\n'))")
 
           echo "Detected tests:"
           echo "$CHANGED_TESTS"
@@ -48,14 +50,33 @@ jobs:
           echo "Running impacted tests:"
           echo "${{ steps.changed-tests.outputs.tests }}"
 
-          echo "${{ steps.changed-tests.outputs.tests }}" \
-            | xargs npx playwright test --project=chromium \
-            > test-output.txt 2>&1
+          mapfile -t TESTS < changed-tests.txt
+          npx playwright test --project=chromium "${TESTS[@]}" > test-output.txt 2>&1
 
       - name: No changed tests
         if: steps.changed-tests.outputs.tests == ''
         run: |
           echo "No Playwright test changes detected."
+
+      - name: Generate lightweight QA summary
+        if: always()
+        run: npm run regression:report
+
+      - name: Publish lightweight QA summary
+        if: always()
+        run: |
+          if [ -f qa-regression-summary.txt ]; then
+            cat qa-regression-summary.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload lightweight QA summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: qa-regression-summary.txt
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload Playwright execution log
         if: always()
