@@ -1,0 +1,142 @@
+import { test, expect } from '@fixtures/base.fixture';
+import { LoginPage } from '@pages/login.page';
+import { ProductsPage } from '@pages/products.page';
+import { CartPage } from '@pages/cart.page';
+import { CheckoutInformationPage } from '@pages/checkoutInformation.page';
+import { CheckoutOverviewPage } from '@pages/checkoutOverview.page';
+import { CheckoutCompletePage } from '@pages/checkoutComplete.page';
+import { authFlow } from '@flows/auth.flow';
+
+/**
+ * @regression
+ * @critical
+ * @smoke
+ */
+test('Successful checkout with multiple products - Happy path', async ({ page }) => {
+  // Arrange
+  const loginPage = new LoginPage(page);
+  const productsPage = new ProductsPage(page);
+  const cartPage = new CartPage(page);
+  const checkoutInfoPage = new CheckoutInformationPage(page);
+  const checkoutOverviewPage = new CheckoutOverviewPage(page);
+  const checkoutCompletePage = new CheckoutCompletePage(page);
+
+  const username = 'standard_user';
+  const password = 'secret_sauce';
+  const firstName = 'John';
+  const lastName = 'Doe';
+  const postalCode = '12345';
+
+  // Choose at least two different items to add
+  const selectedProductNames = [
+    'Sauce Labs Backpack',
+    'Sauce Labs Bike Light',
+  ];
+
+  const addedProducts: { name: string; price: number }[] = [];
+
+  const parsePrice = (priceText: string) => {
+    // Expected format: "$29.99"
+    return Number(priceText.replace(/[^0-9.]/g, ''));
+  };
+
+  // Act
+  // Use existing auth flow to login
+  await authFlow.login(page, username, password);
+
+  // Ensure we're on products page
+  await productsPage.waitForPageLoad();
+
+  // Add selected products and capture their prices from the products listing
+  for (const name of selectedProductNames) {
+    const priceText = await productsPage.getProductPriceByName(name);
+    const price = parsePrice(priceText);
+    addedProducts.push({ name, price });
+    await productsPage.addProductToCartByName(name);
+  }
+
+  // Open cart
+  await productsPage.openCart();
+  await cartPage.waitForPageLoad();
+
+  // Assert (Cart contains selected products with correct names and individual prices)
+  const cartItems = await cartPage.getCartItems();
+  // cartItems: Array<{ name: string; priceText: string }>
+  // Arrange expectation map for easy lookup
+  const expectedByName = new Map(addedProducts.map(p => [p.name, p.price]));
+
+  // Assert names and prices
+  for (const item of cartItems) {
+    const expectedPrice = expectedByName.get(item.name);
+    expect(expectedPrice).toBeDefined();
+    const actualPrice = parsePrice(item.priceText);
+    expect(actualPrice).toBeCloseTo(expectedPrice!, 2);
+  }
+
+  // Proceed to checkout
+  await cartPage.checkout();
+  await checkoutInfoPage.waitForPageLoad();
+
+  // Fill in checkout information
+  await checkoutInfoPage.fillInformation({ firstName, lastName, postalCode });
+  await checkoutInfoPage.continue();
+
+  // On Overview page
+  await checkoutOverviewPage.waitForPageLoad();
+
+  // Act - read overview details
+  const overviewItems = await checkoutOverviewPage.getOverviewItems();
+  // overviewItems: Array<{ name: string; priceText: string }>
+
+  // Assert overview contains the same products
+  const overviewNames = overviewItems.map(i => i.name).sort();
+  const expectedNamesSorted = selectedProductNames.slice().sort();
+  expect(overviewNames).toEqual(expectedNamesSorted);
+
+  // Calculate expected item total
+  const sumOfItems = addedProducts.reduce((acc, p) => acc + p.price, 0);
+
+  const itemTotalText = await checkoutOverviewPage.getItemTotalText(); // e.g. "Item total: $39.98"
+  const taxText = await checkoutOverviewPage.getTaxText(); // e.g. "Tax: $3.20"
+  const totalText = await checkoutOverviewPage.getTotalText(); // e.g. "Total: $43.18"
+
+  const itemTotalValue = parsePrice(itemTotalText);
+  const taxValue = parsePrice(taxText);
+  const totalValue = parsePrice(totalText);
+
+  // Assert item total equals sum of individual item prices
+  expect(itemTotalValue).toBeCloseTo(sumOfItems, 2);
+
+  // Assert tax calculation exists (if applicable) and total equals item total + tax
+  expect(totalValue).toBeCloseTo(itemTotalValue + taxValue, 2);
+
+  // Finish checkout
+  await checkoutOverviewPage.finish();
+  await checkoutCompletePage.waitForPageLoad();
+
+  // Assert order confirmation page displayed with success message
+  const successMessage = await checkoutCompletePage.getSuccessMessage();
+  expect(successMessage).toBeTruthy();
+
+  // Assert order contains all selected products (if the complete page lists them)
+  if (await checkoutCompletePage.hasOrderItems()) {
+    const completeItems = await checkoutCompletePage.getOrderItems(); // Array<{ name: string; priceText?: string }>
+    const completeNames = completeItems.map(i => i.name).sort();
+    expect(completeNames).toEqual(expectedNamesSorted);
+  }
+
+  // If the confirmation page displays totals, validate them too
+  if (await checkoutCompletePage.hasTotals()) {
+    const confirmationItemTotalText = await checkoutCompletePage.getItemTotalText();
+    const confirmationTaxText = await checkoutCompletePage.getTaxText();
+    const confirmationTotalText = await checkoutCompletePage.getTotalText();
+
+    const confirmationItemTotalValue = parsePrice(confirmationItemTotalText);
+    const confirmationTaxValue = parsePrice(confirmationTaxText);
+    const confirmationTotalValue = parsePrice(confirmationTotalText);
+
+    expect(confirmationItemTotalValue).toBeCloseTo(itemTotalValue, 2);
+    expect(confirmationTaxValue).toBeCloseTo(taxValue, 2);
+    expect(confirmationTotalValue).toBeCloseTo(totalValue, 2);
+  }
+});
