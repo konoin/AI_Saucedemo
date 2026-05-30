@@ -1,0 +1,31 @@
+- name: Notify Telegram
+  if: always()
+  env:
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  run: |
+    if [ "${{ job.status }}" = "success" ]; then
+      ICON="✅"
+      STATUS="PASSED"
+    else
+      ICON="❌"
+      STATUS="FAILED"
+    fi
+
+    MESSAGE="$ICON Playwright $STATUS
+
+Repository: ${{ github.repository }}
+Workflow: ${{ github.workflow }}
+Branch: ${{ github.ref_name }}
+Actor: ${{ github.actor }}
+Run Number: ${{ github.run_number }}
+
+Commit:
+${{ github.sha }}
+
+Run:
+https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+      --data-urlencode "text=${MESSAGE}"

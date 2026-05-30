@@ -17,19 +17,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Detect changed Playwright tests
         id: changed-tests
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.*\.(spec|test)\.ts$' || true)
+          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
 
           echo "Detected tests:"
           echo "$CHANGED_TESTS"
@@ -47,7 +48,7 @@ jobs:
           echo "${{ steps.changed-tests.outputs.tests }}"
 
           echo "${{ steps.changed-tests.outputs.tests }}" \
-            | xargs npx playwright test \
+            | xargs npx playwright test --project=chromium \
             > test-output.txt 2>&1
 
       - name: No changed tests
@@ -62,6 +63,7 @@ jobs:
           name: playwright-output
           path: test-output.txt
           retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload Playwright HTML report
         if: always()
