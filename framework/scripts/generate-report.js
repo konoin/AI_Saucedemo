@@ -29,12 +29,26 @@ function readChangedTests() {
   return { added: [], modified: all, all };
 }
 
-function normalizeFile(file) {
+function normalizeFile(file, rootDir = 'framework/tests') {
   if (!file) {
     return '';
   }
 
-  return path.relative(process.cwd(), path.resolve(file)).replace(/\\/g, '/');
+  const normalizedFile = file.replace(/\\/g, '/');
+
+  if (path.isAbsolute(normalizedFile)) {
+    return path.relative(process.cwd(), normalizedFile).replace(/\\/g, '/');
+  }
+
+  if (normalizedFile.startsWith('framework/tests/')) {
+    return normalizedFile;
+  }
+
+  const relativeRoot = path
+    .relative(process.cwd(), path.resolve(rootDir))
+    .replace(/\\/g, '/');
+
+  return path.join(relativeRoot, normalizedFile).replace(/\\/g, '/');
 }
 
 function getResultError(result = {}) {
@@ -96,14 +110,14 @@ function classifyPossibleCause(message = '', status = '') {
   return 'page state issue';
 }
 
-function collectFailures(suites = [], changedFiles = new Set()) {
+function collectFailures(suites = [], changedFiles = new Set(), rootDir = 'framework/tests') {
   const failures = [];
   const failedStatuses = new Set(['failed', 'timedOut', 'interrupted']);
 
   function visit(suiteList = []) {
     for (const suite of suiteList) {
       for (const spec of suite.specs || []) {
-        const file = normalizeFile(spec.file);
+        const file = normalizeFile(spec.file, rootDir);
 
         if (!changedFiles.has(file)) {
           continue;
@@ -185,7 +199,7 @@ let failures = [];
 
 if (reportAvailable) {
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
-  failures = collectFailures(report.suites || [], changedFiles);
+  failures = collectFailures(report.suites || [], changedFiles, report.config?.rootDir);
 }
 
 const addedFailures = failures.filter((failure) => changedTests.added.includes(failure.file));
