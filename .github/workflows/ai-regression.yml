@@ -31,7 +31,8 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- origin/main...HEAD
+          CHANGED_TESTS="$(cat changed-tests.txt)"
 
           echo "Detected tests:"
           echo "$CHANGED_TESTS"
@@ -56,6 +57,23 @@ jobs:
         if: steps.changed-tests.outputs.tests == ''
         run: |
           echo "No Playwright test changes detected."
+
+      - name: Generate lightweight QA summary
+        if: always()
+        run: npm run regression:report
+
+      - name: Add lightweight QA summary to workflow
+        if: always()
+        run: cat qa-regression-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload lightweight QA summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: qa-regression-summary.txt
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Upload Playwright execution log
         if: always()
