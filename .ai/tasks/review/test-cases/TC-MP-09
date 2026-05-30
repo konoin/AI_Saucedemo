@@ -1,0 +1,20 @@
+# MP-09 - Cart persistence during navigation and logout behavior
+
+## Priority
+Medium
+
+## Type
+Edge
+
+## Steps
+
+1. Login with valid credentials.
+2. Add two products to cart.
+3. Navigate away from the site to another URL in the same tab and then return to SauceDemo.
+4. Open the cart and verify contents.
+5. Log out of the application (if logout available) and log back in with same credentials.
+6. Open the cart again.
+
+## Expected Result
+
+Cart contents persist during navigation within the same session and are visible when returning. After logout and re-login, behavior is defined (either cart persists across sessions or is cleared) — the application should behave consistently with its specification. If the app is designed to clear cart on logout, verify cart is empty and user is informed; if it persists, verify items remain intact.
