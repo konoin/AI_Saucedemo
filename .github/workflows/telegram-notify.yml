@@ -8,6 +8,7 @@ on:
       - Nightly Regression
     types:
       - completed
+  workflow_dispatch:
 
 jobs:
   notify:
@@ -30,7 +31,17 @@ jobs:
             exit 0
           fi
 
-          if [ "$WORKFLOW_CONCLUSION" = "success" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            WORKFLOW_CONCLUSION="manual"
+            WORKFLOW_NAME="${{ github.workflow }}"
+            WORKFLOW_BRANCH="${{ github.ref_name }}"
+            WORKFLOW_HTML_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+
+          if [ "$WORKFLOW_CONCLUSION" = "manual" ]; then
+            ICON="📢"
+            STATUS="MANUAL TEST"
+          elif [ "$WORKFLOW_CONCLUSION" = "success" ]; then
             ICON="✅"
             STATUS="PASSED"
           else
