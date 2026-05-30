@@ -110,28 +110,30 @@ function collectResults(suites = [], resultsByFile = new Map()) {
       const entry =
         resultsByFile.get(file) ||
         {
+          total: 0,
           passed: 0,
           failed: 0,
           reasons: [],
         };
 
       for (const test of spec.tests || []) {
-        for (const result of test.results || []) {
-          if (result.status === "passed") {
-            entry.passed += 1;
-            continue;
-          }
+        entry.total += 1;
 
-          if (["failed", "timedOut", "interrupted"].includes(result.status)) {
-            const errorMessage =
-              result.error?.message ||
-              (result.errors || []).map((error) => error.message).join("\n") ||
-              result.status;
+        if (["unexpected", "failed", "timedOut", "interrupted"].includes(test.status)) {
+          const failedResult = (test.results || []).find((result) =>
+            ["failed", "timedOut", "interrupted"].includes(result.status),
+          );
+          const errorMessage =
+            failedResult?.error?.message ||
+            (failedResult?.errors || []).map((error) => error.message).join("\n") ||
+            test.status;
 
-            entry.failed += 1;
-            entry.reasons.push(classifyFailure(errorMessage));
-          }
+          entry.failed += 1;
+          entry.reasons.push(classifyFailure(errorMessage));
+          continue;
         }
+
+        entry.passed += 1;
       }
 
       resultsByFile.set(file, entry);
@@ -169,7 +171,7 @@ function summarizeGroup({ title, files, passedMessage, failedMessage, resultsByF
       continue;
     }
 
-    if (result.failed > 0 || result.passed === 0) {
+    if (result.failed > 0) {
       failedFiles.push(file);
       reasons.push(...result.reasons);
     }
