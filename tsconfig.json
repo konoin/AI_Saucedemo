@@ -14,6 +14,7 @@
       "@fixtures/*": ["framework/fixtures/*"],
       "@data/*": ["framework/data/*"],
       "@constants/*": ["framework/constants/*"],
+      "@flows/*": ["framework/flows/*"],
       "@types": ["framework/types/index.ts"],
       "@types/*": ["framework/types/*"]
     },

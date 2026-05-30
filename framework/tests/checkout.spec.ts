@@ -1,26 +1,33 @@
 import { test, expect } from '@fixtures/base.fixture';
 import { standardUser } from '@data/users';
 import { defaultCheckoutCustomer } from '@data/checkout-customer';
+import { LoginFlow } from '@flows/login.flow';
+import { CheckoutFlow } from '@flows/checkout.flow';
 
 const ORDER_COMPLETE_MESSAGE = 'Thank you for your order!';
 
-test('successful checkout flow', async ({
-  page,
-  loginPage,
-  inventoryPage,
-  cartPage,
-  checkoutPage,
-  checkoutCompletePage,
-}) => {
-  await loginPage.login(standardUser.username, standardUser.password);
+test(
+  '@critical @smoke @regression successful checkout flow',
+  async ({
+    page,
+    loginPage,
+    inventoryPage,
+    cartPage,
+    checkoutPage,
+    checkoutCompletePage,
+  }) => {
+    const loginFlow = new LoginFlow(loginPage);
+    const checkoutFlow = new CheckoutFlow(
+      inventoryPage,
+      cartPage,
+      checkoutPage,
+    );
 
-  await expect(page).toHaveURL(/inventory/);
+    await loginFlow.loginAs(standardUser);
+    await expect(page).toHaveURL(/inventory/);
 
-  await inventoryPage.addBackpackToCart();
-  await inventoryPage.openCart();
-  await cartPage.proceedToCheckout();
-  await checkoutPage.fillShippingInfo(defaultCheckoutCustomer);
-  await checkoutPage.continueCheckout();
-  await checkoutPage.finishOrder();
-  await checkoutCompletePage.expectThankYouMessage(ORDER_COMPLETE_MESSAGE);
-});
+    await checkoutFlow.completeOrder(defaultCheckoutCustomer);
+
+    await checkoutCompletePage.expectThankYouMessage(ORDER_COMPLETE_MESSAGE);
+  },
+);
