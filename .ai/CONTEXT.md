@@ -1,6 +1,6 @@
 # Project Context
 
-**Read time:** ~5 minutes. This is the primary onboarding doc for AI agents.
+**Read time:** ~3 minutes. This is the primary onboarding doc for AI agents.
 
 ## Project name
 
@@ -35,9 +35,17 @@ framework/data/        → Users, checkout data
 framework/types/       → TypeScript interfaces
 framework/helpers/     → Low-level utilities (when needed)
 framework/scripts/     → CI helper scripts
+framework/reporters/   → AI machine-readable output
 ```
 
 **Dependency direction:** tests → flows → pages → selectors. Data/types are imported anywhere needed.
+
+### Quick start (60 seconds)
+
+1. Read `.ai/KNOWN_PATTERNS.md` for auth + checkout
+2. Add selectors → page → flow (if reused) → spec in `framework/tests/<domain>/`
+3. Import `test` from `@fixtures/base.fixture`; tag with `@smoke` / `@regression` / `@critical`
+4. Run `npm test`; inspect `test-results/ai-report.json`
 
 ---
 
@@ -104,12 +112,59 @@ Add new keys under the correct namespace before using them in pages.
 
 ---
 
+## Test folder strategy
+
+| Folder | Domain |
+|--------|--------|
+| `framework/tests/auth/` | Login, session |
+| `framework/tests/inventory/` | Catalog, add to cart |
+| `framework/tests/cart/` | Cart behavior |
+| `framework/tests/checkout/` | Future checkout specs |
+| `framework/tests/*.spec.ts` | Root-level specs (e.g. current checkout) |
+
+Skeletons: `*.spec.example.ts` (not executed). See `docs/test-organization.md`.
+
+---
+
+## Flow strategy
+
+- Use **flows** when ≥2 pages are orchestrated or setup repeats across specs
+- **No assertions** in flows — only in specs
+- Instantiate in spec: `new LoginFlow(loginPage)`, `new CheckoutFlow(...)`
+
+---
+
+## Tagging strategy
+
+| Tag | Command | Use |
+|-----|---------|-----|
+| `@smoke` | `npm run test:smoke` | Fast PR/main confidence |
+| `@regression` | `npm run test:regression` | Standard regression |
+| `@critical` | `npm run test:critical` | Business-critical |
+
+Place tags in the **test title**. Multiple tags allowed.
+
+Docs: `docs/testing-strategy.md`
+
+---
+
+## Reporting strategy
+
+| Output | Path |
+|--------|------|
+| Human HTML | `playwright-report/` |
+| Playwright JSON | `playwright-report/results.json` |
+| **AI summary** | `test-results/ai-report.json` |
+
+AI reporter captures: name, status, duration, tags, retries, project.  
+Custom reporter: `framework/reporters/ai-reporter.ts` (does not replace HTML/JSON).
+
+---
+
 ## Testing strategy
 
-- Specs: `framework/tests/*.spec.ts`
-- Tags: `@smoke`, `@regression`, `@critical` in test titles
 - Structure: **Arrange → Act → Assert**
-- Docs: `docs/testing-strategy.md`
+- Specs: `framework/tests/**/*.spec.ts`
 
 ```bash
 npm test              # all
@@ -122,13 +177,14 @@ npm run test:critical
 
 ## CI
 
-- Workflow: `.github/workflows/ai-regression.yml`
-- Triggers: PRs to `main`
-- Runs only **changed** specs under `framework/tests/`
-- Artifacts: `playwright-output`, `playwright-report`
-- Config: retries `2` on CI, `workers: 1`
+| Workflow | When | What |
+|----------|------|------|
+| `ai-regression.yml` | PR → `main` | Changed specs only |
+| `smoke.yml` | Push `main`, manual | `npm run test:smoke` |
 
-Debug guide: `docs/ci-debugging.md` (traces/screenshots/video retained on failure locally and in reports).
+**Artifacts:** `playwright-report`, `test-results` (traces, screenshots, `ai-report.json`), `playwright-output` (regression log).
+
+Debug: `docs/ci-debugging.md` · MCP locators: `docs/mcp-locator-workflow.md`
 
 ---
 

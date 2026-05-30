@@ -101,10 +101,70 @@ npm run test:critical
 
 ---
 
+## Test folder strategy
+
+| Folder | When to use |
+|--------|----------------|
+| `framework/tests/auth/` | Login, logout, session |
+| `framework/tests/inventory/` | Products, sort, add-to-cart |
+| `framework/tests/cart/` | Cart page behavior |
+| `framework/tests/checkout/` | Checkout-only specs (future) |
+| Root `framework/tests/` | Legacy or cross-domain specs |
+
+Copy `*.spec.example.ts` → rename to `*.spec.ts` → uncomment.  
+**Do not** commit `.example.ts` as runnable tests.
+
+---
+
+## Flow strategy
+
+| Use a flow when | Skip flow when |
+|-----------------|------------------|
+| Multiple pages in one journey | Single page action |
+| Same journey in 2+ specs | One-off 1-step action |
+
+Flows: **no assertions**. Specs: **all expects**.
+
+---
+
+## Tagging strategy
+
+```
+test('@critical @smoke @regression description', async () => { ... });
+```
+
+| Tag | Suite command |
+|-----|----------------|
+| `@smoke` | `npm run test:smoke` |
+| `@regression` | `npm run test:regression` |
+| `@critical` | `npm run test:critical` |
+
+CI smoke workflow runs `@smoke` on push to `main`.
+
+---
+
+## Reporting strategy
+
+After `npm test`, read `test-results/ai-report.json`:
+
+```json
+{
+  "status": "passed",
+  "tests": [{ "name": "...", "tags": ["@smoke"], "status": "passed", "duration": 987 }]
+}
+```
+
+Use for agents, dashboards, and PR summaries. HTML report remains for humans.
+
+---
+
 ## Adding something new
 
-1. Add selectors to `Selectors` in `framework/constants/selectors.ts`
-2. Add or extend a Page Object
-3. Add a Flow if the journey is reused across tests
-4. Keep the spec thin: tags + Arrange/Act/Assert
-5. Copy from `.ai/templates/` when generating files
+1. MCP explore → `docs/mcp-locator-workflow.md`
+2. Add selectors to `Selectors` in `framework/constants/selectors.ts`
+3. Add or extend a Page Object
+4. Add a Flow if the journey is reused across tests
+5. Create spec under the correct `framework/tests/<domain>/` folder
+6. Tag + Arrange/Act/Assert
+7. Copy from `.ai/templates/` when generating files
+8. Verify `test-results/ai-report.json`

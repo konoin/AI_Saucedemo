@@ -5,6 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './framework/tests',
+  testIgnore: ['**/*.example.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -13,6 +14,7 @@ export default defineConfig({
     ['list'],
     ['html'],
     ['json', { outputFile: 'playwright-report/results.json' }],
+    ['./framework/reporters/ai-reporter.ts', { outputFile: 'test-results/ai-report.json' }],
   ],
   use: {
     baseURL: 'https://www.saucedemo.com',

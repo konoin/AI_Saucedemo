@@ -26,6 +26,7 @@ From the Actions run **Artifacts** panel:
 |----------|----------|
 | `playwright-output` | Console output (`test-output.txt`) |
 | `playwright-report` | HTML report folder |
+| `test-results` | Traces, screenshots, videos, `ai-report.json` |
 
 ### 3. Playwright HTML report
 
@@ -47,7 +48,7 @@ On failure, traces are stored under `test-results/` (gitignored).
 npx playwright show-trace test-results/<path-to-trace>/trace.zip
 ```
 
-**CI note:** The workflow uploads `playwright-report/` but not `test-results/` by default. For deep CI debugging, download the HTML report first; if traces are embedded in the report, open them from there. To always get trace zips in CI, a future improvement would upload `test-results/` as a separate artifact (does not change current workflow behavior).
+**CI note:** Workflows upload `test-results/` (traces, screenshots, `ai-report.json`) and `playwright-report/`. Download both artifacts from the Actions run.
 
 ## Screenshots
 
