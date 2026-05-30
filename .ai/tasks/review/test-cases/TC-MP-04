@@ -1,0 +1,19 @@
+# MP-04 - Attempt checkout with missing first name
+
+## Priority
+High
+
+## Type
+Negative
+
+## Steps
+
+1. Login with valid credentials.
+2. Add a product to the cart and open the cart.
+3. Click 'Checkout'.
+4. Enter Last Name: 'Doe' and Postal Code: '12345', leave First Name blank.
+5. Click 'Continue'.
+
+## Expected Result
+
+System displays a clear validation error indicating the first name is required (e.g. 'Error: First Name is required') and prevents continuing to the overview page.
