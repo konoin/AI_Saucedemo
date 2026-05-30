@@ -6,4 +6,8 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+changed-tests.txt
+changed-tests.json
+qa-regression-summary.txt
+test-output.txt
 .env

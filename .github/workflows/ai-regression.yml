@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,7 +33,9 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- origin/main...HEAD
+
+          CHANGED_TESTS=$(cat changed-tests.txt 2>/dev/null || true)
 
           echo "Detected tests:"
           echo "$CHANGED_TESTS"
@@ -56,6 +60,26 @@ jobs:
         if: steps.changed-tests.outputs.tests == ''
         run: |
           echo "No Playwright test changes detected."
+
+      - name: Generate lightweight QA summary
+        if: always()
+        run: npm run regression:report
+
+      - name: Add QA summary to job summary
+        if: always()
+        run: cat qa-regression-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload QA regression summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: |
+            qa-regression-summary.txt
+            changed-tests.txt
+            changed-tests.json
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload Playwright execution log
         if: always()
