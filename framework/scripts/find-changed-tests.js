@@ -1,20 +1,56 @@
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
+const fs = require('fs');
+
+const TEST_FILE_PATTERN = /^framework\/tests\/.+\.(spec|test)\.ts$/;
+const DEFAULT_DIFF_RANGE = 'HEAD~1 HEAD';
+
+const diffArgs =
+  process.argv.length > 2
+    ? process.argv.slice(2)
+    : (process.env.TEST_DIFF_RANGE || DEFAULT_DIFF_RANGE)
+        .split(/\s+/)
+        .filter(Boolean);
+
+function parseNameStatusLine(line) {
+  const [status, ...paths] = line.split('\t').map((value) => value.trim());
+  const code = status?.[0];
+  const file = code === 'R' ? paths[paths.length - 1] : paths[0];
+
+  return { code, file };
+}
+
+function uniqueSorted(files) {
+  return [...new Set(files)].sort();
+}
 
 try {
-  const changedFiles = execSync(
-    'git diff --name-only HEAD~1 HEAD',
-    { encoding: 'utf-8' }
+  const changes = execFileSync(
+    'git',
+    ['diff', '--name-status', '--diff-filter=AMR', ...diffArgs],
+    { encoding: 'utf-8' },
   )
     .split('\n')
-    .map(file => file.trim())
-    .filter(Boolean);
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseNameStatusLine)
+    .filter(({ file }) => TEST_FILE_PATTERN.test(file));
 
-  const changedTests = changedFiles.filter(file =>
-    file.match(/^framework\/tests\/.*\.(spec|test)\.(js|ts)$/)
+  const added = uniqueSorted(
+    changes.filter(({ code }) => code === 'A').map(({ file }) => file),
+  );
+  const modified = uniqueSorted(
+    changes.filter(({ code }) => code === 'M' || code === 'R').map(({ file }) => file),
+  );
+  const all = uniqueSorted([...added, ...modified]);
+
+  fs.writeFileSync('changed-tests.txt', all.join('\n') + (all.length ? '\n' : ''), 'utf-8');
+  fs.writeFileSync(
+    'changed-tests.json',
+    JSON.stringify({ added, modified, all }, null, 2),
+    'utf-8',
   );
 
-  changedTests.forEach(test => console.log(test));
-
+  all.forEach((test) => console.log(test));
 } catch (error) {
   console.error('Failed to detect changed tests.');
   console.error(error.message);
