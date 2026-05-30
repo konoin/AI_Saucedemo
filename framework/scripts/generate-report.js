@@ -1,126 +1,313 @@
-const fs = require("fs");
+const fs = require('fs');
+const path = require('path');
 
-const reportPath = "playwright-report/results.json";
+const REPORT_PATH = 'playwright-report/results.json';
+const CHANGED_TESTS_JSON = 'changed-tests.json';
+const CHANGED_TESTS_TXT = 'changed-tests.txt';
+const OUTPUT_PATH =
+  process.env.QA_REGRESSION_SUMMARY_PATH || 'qa-regression-summary.txt';
 
-if (!fs.existsSync(reportPath)) {
-  console.error("Playwright JSON report not found.");
-  process.exit(1);
+function readJsonIfExists(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+function normalizePath(filePath = '') {
+  const normalized = filePath.replace(/\\/g, '/');
 
-const failedTestsMap = new Map();
+  if (path.isAbsolute(normalized)) {
+    return path.relative(process.cwd(), normalized).replace(/\\/g, '/');
+  }
 
-function classifyError(message = "") {
+  const testsIndex = normalized.indexOf('framework/tests/');
+  return testsIndex >= 0 ? normalized.slice(testsIndex) : normalized;
+}
+
+function readChangedTests() {
+  const metadata = readJsonIfExists(CHANGED_TESTS_JSON);
+
+  if (metadata) {
+    return {
+      added: (metadata.added || []).map(normalizePath),
+      modified: (metadata.modified || []).map(normalizePath),
+    };
+  }
+
+  if (!fs.existsSync(CHANGED_TESTS_TXT)) {
+    return {
+      added: [],
+      modified: [],
+    };
+  }
+
+  return {
+    added: [],
+    modified: fs
+      .readFileSync(CHANGED_TESTS_TXT, 'utf-8')
+      .split('\n')
+      .map((file) => normalizePath(file.trim()))
+      .filter(Boolean),
+  };
+}
+
+function isFailureStatus(status = '') {
+  return ['failed', 'timedOut', 'unexpected', 'interrupted'].includes(status);
+}
+
+function extractErrorMessage(result = {}) {
+  const messages = [];
+
+  if (result.error?.message) {
+    messages.push(result.error.message);
+  }
+
+  if (result.error?.value) {
+    messages.push(result.error.value);
+  }
+
+  if (Array.isArray(result.errors)) {
+    for (const error of result.errors) {
+      if (error.message) {
+        messages.push(error.message);
+      }
+
+      if (error.value) {
+        messages.push(error.value);
+      }
+    }
+  }
+
+  return messages.join('\n');
+}
+
+function classifyPossibleReason(message = '', status = '') {
   const lower = message.toLowerCase();
 
   if (
-    lower.includes("locator") ||
-    lower.includes("element(s) not found") ||
-    lower.includes("waiting for locator")
+    lower.includes('locator') ||
+    lower.includes('element(s) not found') ||
+    lower.includes('waiting for') ||
+    lower.includes('strict mode violation')
   ) {
-    return "UI Locator Failure";
+    return 'locator not found';
   }
 
-  if (lower.includes("timeout") || lower.includes("waiting for response")) {
-    return "Timeout Failure";
+  if (
+    lower.includes('expect(') ||
+    lower.includes('tohave') ||
+    (lower.includes('expected') && lower.includes('received'))
+  ) {
+    return 'assertion mismatch';
   }
 
-  if (lower.includes("net::err") || lower.includes("econnreset")) {
-    return "Network Failure";
+  if (
+    status === 'timedOut' ||
+    lower.includes('timeout') ||
+    lower.includes('timed out')
+  ) {
+    return 'timeout exceeded';
   }
 
-  if (lower.includes("expect(") || lower.includes("tocontaintext")) {
-    return "Assertion Failure";
+  if (
+    lower.includes('net::err') ||
+    lower.includes('econnreset') ||
+    lower.includes('network') ||
+    lower.includes('failed to fetch')
+  ) {
+    return 'API/network failure';
   }
 
-  return "Unknown Failure";
+  if (
+    lower.includes('navigation') ||
+    lower.includes('page.goto') ||
+    lower.includes('load state') ||
+    lower.includes('url')
+  ) {
+    return 'navigation failure';
+  }
+
+  return 'unknown execution failure';
 }
 
-function extractTests(suites = []) {
-  for (const suite of suites) {
-    if (suite.specs) {
-      for (const spec of suite.specs) {
-        for (const test of spec.tests) {
-          for (const result of test.results) {
-            if (result.status === "failed") {
-              const rawError = result.error?.message || "Unknown error";
-              const errorMessage = rawError.split("\n").slice(0, 6).join("\n");
+function createFileResult() {
+  return {
+    executed: false,
+    failures: [],
+  };
+}
 
-              const key = `${spec.file}-${spec.title}`;
+function collectPlaywrightResults(report) {
+  const resultsByFile = new Map();
 
-              if (!failedTestsMap.has(key)) {
-                failedTestsMap.set(key, {
-                  title: spec.title,
-                  file: spec.file,
-                  error: errorMessage,
-                  type: classifyError(errorMessage),
-                  browsers: [],
-                });
-              }
+  function getFileResult(filePath) {
+    if (!resultsByFile.has(filePath)) {
+      resultsByFile.set(filePath, createFileResult());
+    }
 
-              failedTestsMap.get(key).browsers.push(result.workerIndex);
-            }
-          }
+    return resultsByFile.get(filePath);
+  }
+
+  function visitSuite(suite) {
+    for (const spec of suite.specs || []) {
+      const filePath = normalizePath(spec.file || suite.file || '');
+      const fileResult = getFileResult(filePath);
+
+      for (const test of spec.tests || []) {
+        fileResult.executed = true;
+
+        const attempts = test.results || [];
+        const finalResult = attempts[attempts.length - 1] || {};
+        const finalStatus = test.status || finalResult.status || 'unknown';
+
+        if (isFailureStatus(finalStatus) || isFailureStatus(finalResult.status)) {
+          const message = extractErrorMessage(finalResult);
+
+          fileResult.failures.push({
+            title: spec.title || test.title || 'Unnamed test',
+            reason: classifyPossibleReason(message, finalResult.status),
+          });
         }
       }
     }
 
-    if (suite.suites) {
-      extractTests(suite.suites);
+    for (const childSuite of suite.suites || []) {
+      visitSuite(childSuite);
     }
   }
+
+  for (const suite of report.suites || []) {
+    visitSuite(suite);
+  }
+
+  return resultsByFile;
 }
 
-const failedTests = Array.from(failedTestsMap.values());
+function formatList(files) {
+  if (files.length === 0) {
+    return ['* None detected.'];
+  }
 
-let summary = "";
-
-const changedTestsPath = "changed-tests.txt";
-let changedTests = [];
-if (fs.existsSync(changedTestsPath)) {
-  changedTests = fs
-    .readFileSync(changedTestsPath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
+  return files.map((file) => `* ${file}`);
 }
 
-summary += "AI Selective Regression Report\n\n";
+function unique(values) {
+  return [...new Set(values)];
+}
 
-summary += `Repository: ${process.env.GITHUB_REPOSITORY}\n`;
-summary += `Branch: ${process.env.GITHUB_REF_NAME}\n`;
-summary += `Triggered by: ${process.env.GITHUB_ACTOR}\n`;
-summary += `Date: ${new Date().toISOString()}\n\n`;
+function buildGroupResult({
+  files,
+  label,
+  passedMessage,
+  failedMessage,
+  resultsByFile,
+  reportAvailable,
+}) {
+  const lines = [`${label}:`, ...formatList(files), '', 'Result:'];
 
-summary += `Changed Tests:\n`;
+  if (files.length === 0) {
+    lines.push(`No ${label.toLowerCase()} detected.`);
+    return lines;
+  }
 
-if (changedTests.length === 0) {
-  summary += "No changed tests detected\n\n";
+  if (!reportAvailable) {
+    lines.push('Regression result unavailable.');
+    lines.push('');
+    lines.push('Possible reasons:');
+    lines.push('* Playwright JSON report was not generated');
+    return lines;
+  }
+
+  const missingResults = files.filter(
+    (file) => !resultsByFile.get(file)?.executed,
+  );
+  const failures = files.flatMap((file) => resultsByFile.get(file)?.failures || []);
+
+  if (failures.length > 0) {
+    lines.push(failedMessage);
+    lines.push('');
+    lines.push('Possible reasons:');
+
+    for (const reason of unique(failures.map((failure) => failure.reason))) {
+      lines.push(`* ${reason}`);
+    }
+
+    return lines;
+  }
+
+  if (missingResults.length > 0) {
+    lines.push('Regression result incomplete.');
+    lines.push('');
+    lines.push('No result found for:');
+
+    for (const file of missingResults) {
+      lines.push(`* ${file}`);
+    }
+
+    return lines;
+  }
+
+  lines.push(passedMessage);
+  return lines;
+}
+
+const changedTests = readChangedTests();
+const report = readJsonIfExists(REPORT_PATH);
+const reportAvailable = Boolean(report);
+const resultsByFile = reportAvailable
+  ? collectPlaywrightResults(report)
+  : new Map();
+const hasChangedTests =
+  changedTests.added.length > 0 || changedTests.modified.length > 0;
+const lines = ['Lightweight QA Regression Summary', ''];
+
+if (!hasChangedTests) {
+  lines.push('Added tests:');
+  lines.push('* None detected.');
+  lines.push('');
+  lines.push('Modified tests:');
+  lines.push('* None detected.');
+  lines.push('');
+  lines.push('Result:');
+  lines.push(
+    'No in-scope Playwright test changes matched framework/tests/**/*.spec.ts or framework/tests/**/*.test.ts.',
+  );
+  lines.push('Regression execution skipped.');
 } else {
-  changedTests.forEach((test) => {
-    summary += `- ${test}\n`;
-  });
-
-  summary += "\n";
+  lines.push(
+    ...buildGroupResult({
+      files: changedTests.added,
+      label: 'Added tests',
+      passedMessage: 'All newly added tests passed successfully.',
+      failedMessage: 'New tests failed during execution.',
+      resultsByFile,
+      reportAvailable,
+    }),
+  );
+  lines.push('');
+  lines.push(
+    ...buildGroupResult({
+      files: changedTests.modified,
+      label: 'Modified tests',
+      passedMessage: 'Modified tests passed successfully without detected issues.',
+      failedMessage: 'Regression failed.',
+      resultsByFile,
+      reportAvailable,
+    }),
+  );
 }
 
-if (failedTests.length === 0) {
-  summary += "RESULT: PASSED\n\n";
-  summary += "All impacted Playwright tests passed successfully.\n";
-} else {
-  summary += "RESULT: FAILED\n\n";
-
-  summary += `Failed tests count: ${failedTests.length}\n\n`;
-
-  failedTests.forEach((test, index) => {
-    summary += `${index + 1}. ${test.title}\n`;
-    summary += `File: ${test.file}\n`;
-    summary += `Failure Type: ${test.type}\n`;
-    summary += `Error: ${test.error}\n\n`;
-  });
+if (process.env.GITHUB_RUN_ID && process.env.GITHUB_REPOSITORY) {
+  lines.push('');
+  lines.push('GitHub Actions Run:');
+  lines.push(
+    `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+  );
 }
 
-summary += `GitHub Actions Run:\n`;
-summary += `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
+const summary = `${lines.join('\n')}\n`;
 
+fs.writeFileSync(OUTPUT_PATH, summary, 'utf-8');
 console.log(summary);

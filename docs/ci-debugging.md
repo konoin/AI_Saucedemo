@@ -7,7 +7,8 @@ Workflow: `.github/workflows/ai-regression.yml` (behavior unchanged).
 1. Installs dependencies and Playwright browsers
 2. Detects changed files matching `framework/tests/**/*.spec.ts` vs `main`
 3. Runs `npx playwright test` only on those files
-4. Uploads artifacts on every run (`if: always()`)
+4. Generates a lightweight QA regression summary
+5. Uploads artifacts on every run (`if: always()`)
 
 ## Investigating a failed PR check
 
@@ -27,6 +28,7 @@ From the Actions run **Artifacts** panel:
 | `playwright-output` | Console output (`test-output.txt`) |
 | `playwright-report` | HTML report folder |
 | `test-results` | Traces, screenshots, videos, `ai-report.json` |
+| `qa-regression-summary` | Concise added/modified test outcome summary |
 
 ### 3. Playwright HTML report
 
