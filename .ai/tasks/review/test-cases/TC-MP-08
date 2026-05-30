@@ -1,0 +1,19 @@
+# MP-08 - Whitespace-only values treated as empty
+
+## Priority
+Medium
+
+## Type
+Edge
+
+## Steps
+
+1. Login with valid credentials.
+2. Add a product to the cart and open the cart.
+3. Click 'Checkout'.
+4. Enter First Name: '   ' (spaces), Last Name: '   ', Postal Code: '   '.
+5. Click 'Continue'.
+
+## Expected Result
+
+Whitespace-only inputs are treated as empty by validation and appropriate required-field error(s) are displayed; user cannot proceed until real non-whitespace values are provided.
