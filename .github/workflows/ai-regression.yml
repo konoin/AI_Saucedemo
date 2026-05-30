@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,31 +33,49 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- origin/main...HEAD
 
-          echo "Detected tests:"
-          echo "$CHANGED_TESTS"
-
-          echo "tests<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -s changed-tests.txt ]; then
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Run changed Playwright tests
         id: playwright
-        if: steps.changed-tests.outputs.tests != ''
+        if: steps.changed-tests.outputs.has_tests == 'true'
         continue-on-error: true
         run: |
           echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          cat changed-tests.txt
 
-          echo "${{ steps.changed-tests.outputs.tests }}" \
-            | xargs npx playwright test --project=chromium \
+          xargs -a changed-tests.txt npx playwright test --project=chromium \
             > test-output.txt 2>&1
 
       - name: No changed tests
-        if: steps.changed-tests.outputs.tests == ''
+        if: steps.changed-tests.outputs.has_tests == 'false'
         run: |
           echo "No Playwright test changes detected."
+
+      - name: Generate QA regression summary
+        if: always()
+        run: npm run regression:report
+
+      - name: Add QA regression summary to job summary
+        if: always()
+        run: |
+          if [ -f qa-regression-summary.txt ]; then
+            cat qa-regression-summary.txt >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload QA regression summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: qa-regression-summary.txt
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload Playwright execution log
         if: always()
