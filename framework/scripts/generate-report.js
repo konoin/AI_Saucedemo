@@ -1,126 +1,232 @@
-const fs = require("fs");
+const fs = require('fs');
+const path = require('path');
 
-const reportPath = "playwright-report/results.json";
+const CHANGED_TESTS_PATH = 'changed-tests.json';
+const REPORT_PATH = 'playwright-report/results.json';
+const SUMMARY_PATH = 'qa-regression-summary.txt';
 
-if (!fs.existsSync(reportPath)) {
-  console.error("Playwright JSON report not found.");
-  process.exit(1);
+function readChangedTests() {
+  if (fs.existsSync(CHANGED_TESTS_PATH)) {
+    return JSON.parse(fs.readFileSync(CHANGED_TESTS_PATH, 'utf-8'));
+  }
+
+  return {
+    added: [],
+    modified: [],
+    all: [],
+  };
 }
 
-const report = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+function normalizeTestPath(file = '') {
+  const normalized = file.replace(/\\/g, '/');
+  const frameworkIndex = normalized.indexOf('framework/tests/');
 
-const failedTestsMap = new Map();
+  if (frameworkIndex >= 0) {
+    return normalized.slice(frameworkIndex);
+  }
 
-function classifyError(message = "") {
+  if (!normalized.includes('/')) {
+    return path.posix.join('framework/tests', normalized);
+  }
+
+  return normalized;
+}
+
+function finalResultFor(test) {
+  const results = Array.isArray(test.results) ? test.results : [];
+  return results[results.length - 1] || {};
+}
+
+function testFailed(test) {
+  if (test.outcome === 'unexpected' || test.status === 'failed' || test.status === 'timedOut') {
+    return true;
+  }
+
+  const finalResult = finalResultFor(test);
+  return ['failed', 'timedOut', 'interrupted'].includes(finalResult.status);
+}
+
+function classifyPossibleCause(message = '') {
   const lower = message.toLowerCase();
 
   if (
-    lower.includes("locator") ||
-    lower.includes("element(s) not found") ||
-    lower.includes("waiting for locator")
+    lower.includes('locator') ||
+    lower.includes('element(s) not found') ||
+    lower.includes('strict mode violation') ||
+    lower.includes('waiting for selector')
   ) {
-    return "UI Locator Failure";
+    return 'locator not found';
   }
 
-  if (lower.includes("timeout") || lower.includes("waiting for response")) {
-    return "Timeout Failure";
+  if (
+    lower.includes('expect(') ||
+    lower.includes('expected') ||
+    lower.includes('tohavetext') ||
+    lower.includes('tocontaintext') ||
+    lower.includes('tobevisible')
+  ) {
+    return 'assertion mismatch';
   }
 
-  if (lower.includes("net::err") || lower.includes("econnreset")) {
-    return "Network Failure";
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'timeout exceeded';
   }
 
-  if (lower.includes("expect(") || lower.includes("tocontaintext")) {
-    return "Assertion Failure";
+  if (
+    lower.includes('net::err') ||
+    lower.includes('econnreset') ||
+    lower.includes('api') ||
+    lower.includes('request failed') ||
+    lower.includes('waiting for response')
+  ) {
+    return 'API/network failure';
   }
 
-  return "Unknown Failure";
+  if (
+    lower.includes('navigation') ||
+    lower.includes('tohaveurl') ||
+    lower.includes('page.goto') ||
+    lower.includes('waiting for url')
+  ) {
+    return 'navigation failure';
+  }
+
+  return 'test execution issue';
 }
 
-function extractTests(suites = []) {
+function collectFailuresFromSuites(suites = [], failures = new Map()) {
   for (const suite of suites) {
-    if (suite.specs) {
-      for (const spec of suite.specs) {
-        for (const test of spec.tests) {
-          for (const result of test.results) {
-            if (result.status === "failed") {
-              const rawError = result.error?.message || "Unknown error";
-              const errorMessage = rawError.split("\n").slice(0, 6).join("\n");
+    for (const spec of suite.specs || []) {
+      const file = normalizeTestPath(spec.file || suite.file || suite.title);
 
-              const key = `${spec.file}-${spec.title}`;
+      for (const test of spec.tests || []) {
+        if (!testFailed(test)) {
+          continue;
+        }
 
-              if (!failedTestsMap.has(key)) {
-                failedTestsMap.set(key, {
-                  title: spec.title,
-                  file: spec.file,
-                  error: errorMessage,
-                  type: classifyError(errorMessage),
-                  browsers: [],
-                });
-              }
+        const finalResult = finalResultFor(test);
+        const message =
+          finalResult.error?.message ||
+          finalResult.errors?.[0]?.message ||
+          finalResult.status ||
+          'Unknown failure';
+        const key = `${file}:${spec.title}`;
 
-              failedTestsMap.get(key).browsers.push(result.workerIndex);
-            }
-          }
+        if (!failures.has(key)) {
+          failures.set(key, {
+            file,
+            cause: classifyPossibleCause(message),
+          });
         }
       }
     }
 
-    if (suite.suites) {
-      extractTests(suite.suites);
-    }
+    collectFailuresFromSuites(suite.suites || [], failures);
   }
+
+  return failures;
 }
 
-const failedTests = Array.from(failedTestsMap.values());
+function readFailures(changedTests) {
+  if (changedTests.all.length === 0) {
+    return [];
+  }
 
-let summary = "";
+  if (!fs.existsSync(REPORT_PATH)) {
+    return changedTests.all.map((file) => ({
+      file: normalizeTestPath(file),
+      cause: 'test execution issue',
+    }));
+  }
 
-const changedTestsPath = "changed-tests.txt";
-let changedTests = [];
-if (fs.existsSync(changedTestsPath)) {
-  changedTests = fs
-    .readFileSync(changedTestsPath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
+  const report = JSON.parse(fs.readFileSync(REPORT_PATH, 'utf-8'));
+  const changedTestSet = new Set(changedTests.all.map(normalizeTestPath));
+
+  return Array.from(collectFailuresFromSuites(report.suites || []).values()).filter((failure) =>
+    changedTestSet.has(failure.file)
+  );
 }
 
-summary += "AI Selective Regression Report\n\n";
-
-summary += `Repository: ${process.env.GITHUB_REPOSITORY}\n`;
-summary += `Branch: ${process.env.GITHUB_REF_NAME}\n`;
-summary += `Triggered by: ${process.env.GITHUB_ACTOR}\n`;
-summary += `Date: ${new Date().toISOString()}\n\n`;
-
-summary += `Changed Tests:\n`;
-
-if (changedTests.length === 0) {
-  summary += "No changed tests detected\n\n";
-} else {
-  changedTests.forEach((test) => {
-    summary += `- ${test}\n`;
-  });
-
-  summary += "\n";
+function uniqueCausesFor(files, failures) {
+  const fileSet = new Set(files.map(normalizeTestPath));
+  return Array.from(
+    new Set(failures.filter((failure) => fileSet.has(failure.file)).map((failure) => failure.cause))
+  );
 }
 
-if (failedTests.length === 0) {
-  summary += "RESULT: PASSED\n\n";
-  summary += "All impacted Playwright tests passed successfully.\n";
-} else {
-  summary += "RESULT: FAILED\n\n";
+function appendTestList(lines, tests) {
+  if (tests.length === 0) {
+    lines.push('* None');
+    return;
+  }
 
-  summary += `Failed tests count: ${failedTests.length}\n\n`;
-
-  failedTests.forEach((test, index) => {
-    summary += `${index + 1}. ${test.title}\n`;
-    summary += `File: ${test.file}\n`;
-    summary += `Failure Type: ${test.type}\n`;
-    summary += `Error: ${test.error}\n\n`;
-  });
+  tests.forEach((test) => lines.push(`* ${test}`));
 }
 
-summary += `GitHub Actions Run:\n`;
-summary += `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\n`;
+function appendGroupSummary(lines, label, tests, passMessage, failMessage, failures) {
+  lines.push(`${label}:`);
+  appendTestList(lines, tests);
+  lines.push('');
 
+  if (tests.length === 0) {
+    lines.push('Result:');
+    lines.push('No tests in this category.');
+    lines.push('');
+    return;
+  }
+
+  const causes = uniqueCausesFor(tests, failures);
+
+  lines.push('Result:');
+  if (causes.length === 0) {
+    lines.push(passMessage);
+    lines.push('');
+    return;
+  }
+
+  lines.push(failMessage);
+  lines.push('');
+  lines.push('Possible reasons:');
+  causes.forEach((cause) => lines.push(`* ${cause}`));
+  lines.push('');
+}
+
+function buildSummary(changedTests, failures) {
+  const lines = ['Lightweight QA Regression Summary', ''];
+
+  if (changedTests.all.length === 0) {
+    lines.push('No added or modified Playwright tests detected.');
+    lines.push('');
+    lines.push('Result:');
+    lines.push('No regression execution required.');
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  appendGroupSummary(
+    lines,
+    'Added tests',
+    changedTests.added,
+    'All newly added tests passed successfully.',
+    'New tests failed during execution.',
+    failures
+  );
+
+  appendGroupSummary(
+    lines,
+    'Modified tests',
+    changedTests.modified,
+    'Modified tests passed successfully without detected issues.',
+    'Regression failed.',
+    failures
+  );
+
+  return lines.join('\n');
+}
+
+const changedTests = readChangedTests();
+const failures = readFailures(changedTests);
+const summary = buildSummary(changedTests, failures);
+
+fs.writeFileSync(SUMMARY_PATH, summary);
 console.log(summary);
