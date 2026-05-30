@@ -1,0 +1,25 @@
+# MP-01 - End-to-end successful checkout
+
+## Priority
+High
+
+## Type
+Positive
+
+## Steps
+
+1. Open the application at https://www.saucedemo.com
+2. On the login page enter username 'standard_user' and password 'secret_sauce'
+3. Click 'Login' and verify the inventory page is displayed
+4. On the inventory page find product 'Sauce Labs Backpack' and click 'Add to cart'
+5. Click the cart icon in the header to open the cart
+6. Verify the selected product is listed in the cart and click 'Checkout'
+7. On the Checkout: Your Information page enter first name 'John', last name 'Doe', postal code '12345'
+8. Click 'Continue' to go to the Overview page
+9. On the Overview page verify the item, quantity, item total and tax are displayed correctly
+10. Click 'Finish' to complete the order
+11. Verify the completion/confirmation page is displayed with the message 'THANK YOU FOR YOUR ORDER' (or equivalent confirmation) and that checkout flow is finished
+
+## Expected Result
+
+User is able to complete full purchase flow: login, add a product, open cart, checkout and finish order. Order confirmation page is shown with confirmation message and the purchased item is recorded on the Overview prior to finishing.
