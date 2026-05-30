@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,13 +33,13 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run regression:detect -- origin/main...HEAD
 
           echo "Detected tests:"
-          echo "$CHANGED_TESTS"
+          sed -n '1,120p' changed-tests.txt
 
           echo "tests<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
+          sed -n '1,120p' changed-tests.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Run changed Playwright tests
@@ -46,16 +48,27 @@ jobs:
         continue-on-error: true
         run: |
           echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          sed -n '1,120p' changed-tests.txt
 
-          echo "${{ steps.changed-tests.outputs.tests }}" \
-            | xargs npx playwright test --project=chromium \
-            > test-output.txt 2>&1
+          mapfile -t CHANGED_TESTS < changed-tests.txt
+          npx playwright test --project=chromium "${CHANGED_TESTS[@]}" 2>&1 | tee test-output.txt
+          exit ${PIPESTATUS[0]}
 
       - name: No changed tests
         if: steps.changed-tests.outputs.tests == ''
         run: |
           echo "No Playwright test changes detected."
+
+      - name: Generate lightweight QA summary
+        if: always()
+        run: npm run regression:report
+
+      - name: Publish lightweight QA summary
+        if: always()
+        run: |
+          if [ -f qa-regression-summary.txt ]; then
+            sed -n '1,200p' qa-regression-summary.txt >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload Playwright execution log
         if: always()
@@ -81,6 +94,18 @@ jobs:
         with:
           name: test-results
           path: test-results/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload lightweight QA summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lightweight-qa-summary
+          path: |
+            qa-regression-summary.txt
+            changed-tests.txt
+            changed-tests.json
           retention-days: 30
           if-no-files-found: ignore
 
