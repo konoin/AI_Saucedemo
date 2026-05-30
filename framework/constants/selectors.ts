@@ -1,23 +1,23 @@
 export const Selectors = {
   login: {
-    username: 'username',
-    password: 'password',
-    loginButton: 'login-button',
+    username: "username",
+    password: "password",
+    loginButton: "login-button",
   },
   inventory: {
-    shoppingCartLink: 'shopping-cart-link',
-    addToCartBackpack: 'add-to-cart-sauce-labs-backpack',
+    shoppingCartLink: "shopping-cart-link",
+    addToCartBackpack: "add-to-cart-sauce-labs-backpack",
   },
   cart: {
-    checkout: 'checkout',
+    checkout: "checkout",
   },
   checkout: {
-    firstName: 'firstName',
-    lastName: 'lastName',
-    postalCode: 'postalCode',
-    continueButton: 'continue',
-    finish: 'finish',
-    completeHeader: 'complete-header',
+    firstName: "firstName",
+    lastName: "lastName",
+    postalCode: "postalCode",
+    continueButton: "continue",
+    finish: "finish",
+    completeHeader: "complete-header---123",
   },
 } as const;
 
