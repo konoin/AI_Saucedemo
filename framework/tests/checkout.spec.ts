@@ -1,10 +1,11 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from '@playwright/test';
+import { standardUser } from '../data/users';
 
-test("successful checkout flow", async ({ page }) => {
-  await page.goto("https://www.saucedemo.com/");
+test('successful checkout flow', async ({ page }) => {
+  await page.goto('https://www.saucedemo.com/');
 
-  await page.locator('[data-test="username"]').fill("standard_user");
-  await page.locator('[data-test="password"]').fill("secret_sauce");
+  await page.locator('[data-test="username"]').fill(standardUser.username);
+  await page.locator('[data-test="password"]').fill(standardUser.password);
 
   await page.locator('[data-test="login-button"]').click();
 
@@ -16,15 +17,15 @@ test("successful checkout flow", async ({ page }) => {
 
   await page.locator('[data-test="checkout"]').click();
 
-  await page.locator('[data-test="firstName"]').fill("John");
-  await page.locator('[data-test="lastName"]').fill("Doe");
-  await page.locator('[data-test="postalCode"]').fill("12345");
+  await page.locator('[data-test="firstName"]').fill('John');
+  await page.locator('[data-test="lastName"]').fill('Doe');
+  await page.locator('[data-test="postalCode"]').fill('12345');
 
   await page.locator('[data-test="continue"]').click();
 
   await page.locator('[data-test="finish"]').click();
 
-  await expect(page.locator(".complete-header-911")).toContainText(
-    "Thank you for your order!",
+  await expect(page.getByTestId('complete-header')).toContainText(
+    'Thank you for your order!',
   );
 });

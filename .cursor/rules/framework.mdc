@@ -1,0 +1,19 @@
+---
+description: AI Saucedemo Playwright framework conventions
+alwaysApply: true
+---
+
+# Framework rules
+
+- Use **TypeScript** for all framework and test code.
+- Use **Playwright** (`@playwright/test`) — no other runners.
+- Use **Page Object Model**: UI in `framework/pages/` and `framework/components/`.
+- Prefer **fixtures** from `framework/fixtures/` for shared setup.
+- Store selectors in `framework/constants/selectors.ts`; use `getByTestId()`.
+- Sauce Demo uses `data-test` — configured as `testIdAttribute` in `playwright.config.ts`.
+- Store test data in `framework/data/`; types in `framework/types/`.
+- **Avoid XPath** and brittle CSS selectors.
+- **No hardcoded waits** (`waitForTimeout`) without justification.
+- Specs live in `framework/tests/` only.
+- Do not add an API layer unless explicitly requested.
+- Preserve `.cursor/mcp.json` Playwright MCP configuration.

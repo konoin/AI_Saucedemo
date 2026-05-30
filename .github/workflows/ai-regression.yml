@@ -43,53 +43,33 @@ jobs:
         if: steps.changed-tests.outputs.tests != ''
         continue-on-error: true
         run: |
-          echo "${{ steps.changed-tests.outputs.tests }}" | xargs npx playwright test > test-output.txt 2>&1
+          echo "Running impacted tests:"
+          echo "${{ steps.changed-tests.outputs.tests }}"
 
-      - name: Prepare email content
-        if: always()
+          echo "${{ steps.changed-tests.outputs.tests }}" \
+            | xargs npx playwright test \
+            > test-output.txt 2>&1
+
+      - name: No changed tests
+        if: steps.changed-tests.outputs.tests == ''
         run: |
-          {
-            echo "AI Selective Regression"
-            echo ""
-            echo "Repository: ${{ github.repository }}"
-            echo "Pull Request Author: ${{ github.actor }}"
-            echo ""
-            echo "Changed or Added Tests:"
-            echo "${{ steps.changed-tests.outputs.tests }}"
-            echo ""
+          echo "No Playwright test changes detected."
 
-            if grep -qi "failed" test-output.txt; then
-              echo "Execution Result: FAILED"
-              echo ""
-              echo "Failure Reasons:"
-              grep -E "locator|Timeout|expect|Error:" test-output.txt | head -20
-            else
-              echo "Execution Result: PASSED"
-            fi
-
-            echo ""
-            echo "GitHub Actions Run:"
-            echo "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          } > email.txt
-
-      - name: Send email notification
+      - name: Upload Playwright execution log
         if: always()
-        uses: dawidd6/action-send-mail@v3
+        uses: actions/upload-artifact@v4
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
+          name: playwright-output
+          path: test-output.txt
+          retention-days: 30
 
-          username: ${{ secrets.EMAIL_USERNAME }}
-          password: ${{ secrets.EMAIL_PASSWORD }}
-
-          subject: >
-            AI Regression - ${{ job.status }}
-
-          to: ${{ secrets.NOTIFICATION_EMAIL }}
-          from: ${{ secrets.EMAIL_USERNAME }}
-
-          body: file://email.txt
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
 
       - name: Fail workflow if tests failed
         if: steps.playwright.outcome == 'failure'

@@ -10,7 +10,7 @@ try {
     .filter(Boolean);
 
   const changedTests = changedFiles.filter(file =>
-    file.match(/^tests\/.*\.(spec|test)\.(js|ts)$/)
+    file.match(/^framework\/tests\/.*\.(spec|test)\.(js|ts)$/)
   );
 
   changedTests.forEach(test => console.log(test));
