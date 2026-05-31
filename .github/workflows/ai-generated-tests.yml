@@ -1,125 +1,53 @@
-# Runs Playwright tests from .ai/tasks/generated/auto-tests only.
-# Uses playwright.ai-generated.config.ts — does not use the default testDir (framework/tests).
 name: AI Generated Tests
 
 on:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+workflow_dispatch:
 
 env:
-  AI_GENERATED_TEST_DIR: .ai/tasks/generated/auto-tests
+AI_GENERATED_TEST_DIR: .ai/tasks/generated/auto-tests
 
 jobs:
-  ai-generated-tests:
-    runs-on: ubuntu-latest
+ai-generated-tests:
+runs-on: ubuntu-latest
 
-    steps:
-      # --- Checkout & toolchain ---
-      - name: Checkout repository
-        uses: actions/checkout@v4
+```
+steps:
+  - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+  - uses: actions/setup-node@v4
+    with:
+      node-version: 20
+      cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+  - run: npm ci
 
-      # --- Playwright browsers (Chromium for PR/push speed; config supports all projects) ---
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+  - run: npx playwright install --with-deps chromium
 
-      # --- Ensure AI-generated test directory exists ---
-      - name: Verify AI-generated test directory
-        run: |
-          if [ ! -d "${{ env.AI_GENERATED_TEST_DIR }}" ]; then
-            echo "::error::Missing directory: ${{ env.AI_GENERATED_TEST_DIR }}"
-            exit 1
-          fi
-          echo "Directory exists: ${{ env.AI_GENERATED_TEST_DIR }}"
-          find "${{ env.AI_GENERATED_TEST_DIR }}" -name '*.spec.ts' -o -name '*.test.ts' | head -50 || true
-          SPEC_COUNT=$(find "${{ env.AI_GENERATED_TEST_DIR }}" \( -name '*.spec.ts' -o -name '*.test.ts' \) | wc -l | tr -d ' ')
-          if [ "$SPEC_COUNT" = "0" ]; then
-            echo "::warning::No .spec.ts or .test.ts files in ${{ env.AI_GENERATED_TEST_DIR }}"
-          else
-            echo "Found $SPEC_COUNT spec file(s)."
-          fi
+  - name: Verify generated tests
+    run: |
+      if [ ! -d "${{ env.AI_GENERATED_TEST_DIR }}" ]; then
+        echo "::error::Directory not found"
+        exit 1
+      fi
 
-      # --- Execute tests from custom directory via dedicated config (not default playwright.config.ts) ---
-      - name: Run AI-generated Playwright tests
-        id: playwright
-        run: |
-          npx playwright test \
-            --config=playwright.ai-generated.config.ts \
-            --project=chromium
+  - name: Run AI generated tests
+    run: |
+      npx playwright test \
+        --config=playwright.ai-generated.config.ts \
+        --project=chromium
 
-      # --- Reports & artifacts (separate folders from framework test runs) ---
-      - name: Upload Playwright HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-ai-generated
-          path: playwright-report-ai-generated/
-          retention-days: 30
-          if-no-files-found: ignore
+  - name: Upload HTML Report
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: playwright-report-ai
+      path: playwright-report-ai-generated/
+      retention-days: 30
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-ai-generated
-          path: test-results-ai-generated/
-          retention-days: 30
-          if-no-files-found: ignore
-
-      # --- Telegram: success ---
-      - name: Notify Telegram on success
-        if: success()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "Telegram secrets not configured. Skipping notification."
-            exit 0
-          fi
-
-          MESSAGE="✅ AI-generated Playwright tests completed successfully
-
-          Repository: ${{ github.repository }}
-          Branch: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}"
-
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=${MESSAGE}"
-
-      # --- Telegram: failure ---
-      - name: Notify Telegram on failure
-        if: failure()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "Telegram secrets not configured. Skipping notification."
-            exit 0
-          fi
-
-          MESSAGE="❌ AI-generated Playwright tests failed
-
-          Repository: ${{ github.repository }}
-          Branch: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}
-          Workflow URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=${MESSAGE}"
+  - name: Upload Results
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: test-results-ai
+      path: test-results-ai-generated/
+      retention-days: 30

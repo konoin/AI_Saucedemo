@@ -1,65 +1,47 @@
 name: Telegram Notify
 
 on:
-  workflow_run:
-    workflows:
-      - AI Selective Regression
-      - Smoke Tests
-      - Nightly Regression
-    types:
-      - completed
-  workflow_dispatch:
+workflow_run:
+workflows:
+- AI Generated Tests
+- Pull Request Validation
+- Nightly Regression
+types:
+- completed
 
 jobs:
-  notify:
-    runs-on: ubuntu-latest
-    if: always()
+notify:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Notify Telegram
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-          WORKFLOW_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
-          WORKFLOW_HTML_URL: ${{ github.event.workflow_run.html_url }}
-        run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "Telegram secrets not configured. Skipping notification."
-            exit 0
-          fi
+```
+steps:
+  - name: Send Telegram Message
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            WORKFLOW_CONCLUSION="manual"
-            WORKFLOW_NAME="${{ github.workflow }}"
-            WORKFLOW_BRANCH="${{ github.ref_name }}"
-            WORKFLOW_HTML_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          fi
+      WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+      WORKFLOW_STATUS: ${{ github.event.workflow_run.conclusion }}
+      WORKFLOW_URL: ${{ github.event.workflow_run.html_url }}
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
 
-          if [ "$WORKFLOW_CONCLUSION" = "manual" ]; then
-            ICON="📢"
-            STATUS="MANUAL TEST"
-          elif [ "$WORKFLOW_CONCLUSION" = "success" ]; then
-            ICON="✅"
-            STATUS="PASSED"
-          else
-            ICON="❌"
-            STATUS="FAILED"
-          fi
+    run: |
+      if [ "$WORKFLOW_STATUS" = "success" ]; then
+        ICON="✅"
+      else
+        ICON="❌"
+      fi
 
-          MESSAGE="$ICON Playwright $STATUS
+      MESSAGE="$ICON Playwright Execution
 
-          Repository: ${{ github.repository }}
-          Workflow: ${WORKFLOW_NAME}
-          Branch: ${WORKFLOW_BRANCH}
-          Conclusion: ${WORKFLOW_CONCLUSION}
-          Actor: ${{ github.actor }}
+      Workflow: $WORKFLOW_NAME
+      Branch: $BRANCH
+      Status: $WORKFLOW_STATUS
 
-          Run:
-          ${WORKFLOW_HTML_URL}"
+      $WORKFLOW_URL"
 
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=${MESSAGE}"
+      curl -s \
+        -X POST \
+        "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+        --data-urlencode "text=${MESSAGE}"
