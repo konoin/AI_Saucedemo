@@ -20,5 +20,10 @@
     },
     "types": ["node", "@playwright/test"]
   },
-  "include": ["framework/**/*.ts", "playwright.config.ts"]
+  "include": [
+    "framework/**/*.ts",
+    "playwright.config.ts",
+    "playwright.ai-generated.config.ts",
+    ".ai/tasks/generated/**/*.ts"
+  ]
 }

@@ -8,6 +8,7 @@
     "test:regression": "playwright test --grep @regression",
     "test:critical": "playwright test --grep @critical",
     "test:ui": "playwright test --ui",
+    "test:ai-generated": "playwright test --config=playwright.ai-generated.config.ts --project=chromium",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
