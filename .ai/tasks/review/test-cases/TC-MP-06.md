@@ -1,4 +1,6 @@
-Name MP-06 - Checkout attempt with missing postal code
+## Name
+
+MP-06 - Checkout attempt with missing postal code
 
 ## Priority
 

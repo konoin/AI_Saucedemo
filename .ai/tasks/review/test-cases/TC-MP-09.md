@@ -1,4 +1,6 @@
-Name MP-09 - Remove item from cart before checkout and complete order with remaining items
+## Name
+
+MP-09 - Remove item from cart before checkout and complete order with remaining items
 
 ## Priority
 

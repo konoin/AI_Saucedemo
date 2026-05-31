@@ -1,4 +1,6 @@
-Name MP-02 - Successful checkout with multiple products
+## Name
+
+MP-02 - Successful checkout with multiple products
 
 ## Priority
 
