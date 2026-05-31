@@ -1,52 +1,70 @@
 name: AI Generated Tests
 
 on:
-workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
-AI_GENERATED_TEST_DIR: .ai/tasks/generated/auto-tests
+  AI_GENERATED_TEST_DIR: .ai/tasks/generated/auto-tests
 
 jobs:
-ai-generated-tests:
-runs-on: ubuntu-latest
+  ai-generated-tests:
+    runs-on: ubuntu-latest
 
-steps:
-  - uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  - uses: actions/setup-node@v4
-    with:
-      node-version: 20
-      cache: npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
-  - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-  - run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
-  - name: Verify generated tests
-    run: |
-      if [ ! -d "${{ env.AI_GENERATED_TEST_DIR }}" ]; then
-        echo "::error::Directory not found"
-        exit 1
-      fi
+      - name: Verify generated tests directory
+        run: |
+          if [ ! -d "${{ env.AI_GENERATED_TEST_DIR }}" ]; then
+            echo "::error::Directory not found: ${{ env.AI_GENERATED_TEST_DIR }}"
+            exit 1
+          fi
+          SPEC_COUNT=$(find "${{ env.AI_GENERATED_TEST_DIR }}" \( -name '*.spec.ts' -o -name '*.test.ts' \) | wc -l | tr -d ' ')
+          if [ "$SPEC_COUNT" = "0" ]; then
+            echo "::error::No spec files in ${{ env.AI_GENERATED_TEST_DIR }}"
+            exit 1
+          fi
+          echo "Found $SPEC_COUNT spec file(s)."
 
-  - name: Run AI generated tests
-    run: |
-      npx playwright test \
-        --config=playwright.ai-generated.config.ts \
-        --project=chromium
+      - name: Run AI generated tests
+        run: |
+          npx playwright test \
+            --config=playwright.ai-generated.config.ts \
+            --project=chromium
 
-  - name: Upload HTML Report
-    if: always()
-    uses: actions/upload-artifact@v4
-    with:
-      name: playwright-report-ai
-      path: playwright-report-ai-generated/
-      retention-days: 30
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-ai-generated
+          path: playwright-report-ai-generated/
+          retention-days: 30
+          if-no-files-found: ignore
 
-  - name: Upload Results
-    if: always()
-    uses: actions/upload-artifact@v4
-    with:
-      name: test-results-ai
-      path: test-results-ai-generated/
-      retention-days: 30
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-ai-generated
+          path: test-results-ai-generated/
+          retention-days: 30
+          if-no-files-found: ignore

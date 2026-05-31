@@ -1,36 +1,48 @@
 name: Pull Request Validation
 
 on:
-pull_request:
-branches:
-  - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-validation:
-runs-on: ubuntu-latest
+  validation:
+    runs-on: ubuntu-latest
 
-steps:
-  - uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  - uses: actions/setup-node@v4
-    with:
-      node-version: 20
-      cache: npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
-  - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-  - run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
-  - name: Run Critical Tests
-    run: |
-      npx playwright test \
-        --grep "@critical" \
-        --project=chromium
+      - name: Run critical tests
+        run: npm run test:critical -- --project=chromium
 
-  - name: Upload Report
-    if: always()
-    uses: actions/upload-artifact@v4
-    with:
-      name: playwright-report-pr
-      path: playwright-report/
-      retention-days: 30
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-pr
+          path: playwright-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-pr
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: ignore
