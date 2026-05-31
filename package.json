@@ -8,6 +8,8 @@
     "test:regression": "playwright test --grep @regression",
     "test:critical": "playwright test --grep @critical",
     "test:ui": "playwright test --ui",
+    "regression:detect": "node framework/scripts/find-changed-tests.js",
+    "regression:report": "node framework/scripts/generate-report.js",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
