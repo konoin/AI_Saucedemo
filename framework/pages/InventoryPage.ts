@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 import { inventorySelectors } from '@constants/selectors';
 
 const PRODUCT_ADD_TO_CART_SELECTORS: Record<string, string> = {
@@ -8,7 +8,15 @@ const PRODUCT_ADD_TO_CART_SELECTORS: Record<string, string> = {
 };
 
 export class InventoryPage {
-  constructor(private readonly page: Page) {}
+  readonly inventoryItems: Locator;
+  readonly productNames: Locator;
+  readonly productPrices: Locator;
+
+  constructor(private readonly page: Page) {
+    this.inventoryItems = page.getByTestId(inventorySelectors.item);
+    this.productNames = page.getByTestId(inventorySelectors.itemName);
+    this.productPrices = page.getByTestId(inventorySelectors.itemPrice);
+  }
 
   async addBackpackToCart() {
     await this.page
@@ -38,6 +46,22 @@ export class InventoryPage {
     }
 
     return Number((await badge.textContent())?.trim() ?? 0);
+  }
+
+  async getProductsCount(): Promise<number> {
+    return this.inventoryItems.count();
+  }
+
+  async getProductNames(): Promise<string[]> {
+    return this.productNames
+      .allTextContents()
+      .then((names) => names.map((name) => name.trim()));
+  }
+
+  async getProductPrices(): Promise<string[]> {
+    return this.productPrices
+      .allTextContents()
+      .then((prices) => prices.map((price) => price.trim()));
   }
 
   async logout() {
