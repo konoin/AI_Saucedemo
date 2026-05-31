@@ -1,9 +1,11 @@
-## Name MP-01 - Successful checkout with a single product
+Name MP-01 - Successful checkout with a single product
 
 ## Priority
+
 High
 
 ## Type
+
 Positive
 
 ## Steps

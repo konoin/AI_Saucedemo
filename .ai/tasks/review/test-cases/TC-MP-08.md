@@ -1,9 +1,11 @@
-## Name MP-08 - Checkout with very long and special-character inputs
+Name MP-08 - Checkout with very long and special-character inputs
 
 ## Priority
+
 Medium
 
 ## Type
+
 Edge
 
 ## Steps

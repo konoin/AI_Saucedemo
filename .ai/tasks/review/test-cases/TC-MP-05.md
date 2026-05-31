@@ -1,9 +1,11 @@
-## Name MP-05 - Checkout attempt with missing last name
+Name MP-05 - Checkout attempt with missing last name
 
 ## Priority
+
 High
 
 ## Type
+
 Negative
 
 ## Steps

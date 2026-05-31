@@ -1,9 +1,11 @@
-## Name MP-03 - Checkout attempt with all checkout fields empty
+Name MP-03 - Checkout attempt with all checkout fields empty
 
 ## Priority
+
 High
 
 ## Type
+
 Negative
 
 ## Steps

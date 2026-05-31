@@ -1,9 +1,11 @@
-## Name MP-10 - Session expiration during checkout and behavior after re-login
+Name MP-10 - Session expiration during checkout and behavior after re-login
 
 ## Priority
+
 High
 
 ## Type
+
 Edge
 
 ## Steps

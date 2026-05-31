@@ -1,9 +1,11 @@
-## Name MP-07 - Cart persistence when navigating away and back
+Name MP-07 - Cart persistence when navigating away and back
 
 ## Priority
+
 Medium
 
 ## Type
+
 Edge
 
 ## Steps
