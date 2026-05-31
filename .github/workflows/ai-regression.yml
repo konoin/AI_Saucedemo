@@ -31,14 +31,18 @@ jobs:
         run: |
           git fetch origin main
 
-          CHANGED_TESTS=$(git diff --name-only origin/main...HEAD | grep -E 'framework/tests/.+\.(spec|test)\.ts$' || true)
+          npm run --silent regression:detect -- origin/main HEAD
 
           echo "Detected tests:"
-          echo "$CHANGED_TESTS"
+          if [ -s changed-tests.txt ]; then
+            cat changed-tests.txt
+          else
+            echo "No added or modified Playwright tests detected."
+          fi
 
-          echo "tests<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_TESTS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "tests<<EOF" >> "$GITHUB_OUTPUT"
+          cat changed-tests.txt >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Run changed Playwright tests
         id: playwright
@@ -46,16 +50,31 @@ jobs:
         continue-on-error: true
         run: |
           echo "Running impacted tests:"
-          echo "${{ steps.changed-tests.outputs.tests }}"
+          cat changed-tests.txt
 
-          echo "${{ steps.changed-tests.outputs.tests }}" \
-            | xargs npx playwright test --project=chromium \
+          mapfile -t changed_tests < changed-tests.txt
+          npx playwright test --project=chromium "${changed_tests[@]}" \
             > test-output.txt 2>&1
 
       - name: No changed tests
         if: steps.changed-tests.outputs.tests == ''
         run: |
           echo "No Playwright test changes detected."
+
+      - name: Generate lightweight QA summary
+        if: always()
+        run: |
+          npm run --silent regression:report
+          cat qa-regression-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload QA regression summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-summary
+          path: qa-regression-summary.txt
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Upload Playwright execution log
         if: always()
