@@ -3,6 +3,7 @@ export const Selectors = {
     username: "username",
     password: "password",
     loginButton: "login-button",
+    error: "error",
   },
   inventory: {
     shoppingCartLink: "shopping-cart-link",
