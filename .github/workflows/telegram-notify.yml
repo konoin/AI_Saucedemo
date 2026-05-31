@@ -3,17 +3,16 @@ name: Telegram Notify
 on:
 workflow_run:
 workflows:
-- AI Generated Tests
-- Pull Request Validation
-- Nightly Regression
+  - AI Generated Tests
+  - Pull Request Validation
+  - Nightly Regression
 types:
-- completed
+  - completed
 
 jobs:
 notify:
 runs-on: ubuntu-latest
 
-```
 steps:
   - name: Send Telegram Message
     env:

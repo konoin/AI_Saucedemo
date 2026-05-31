@@ -2,7 +2,7 @@ name: Nightly Regression
 
 on:
 schedule:
-- cron: "0 2 * * *"
+  - cron: "0 2 * * *"
 
 workflow_dispatch:
 
@@ -10,7 +10,6 @@ jobs:
 regression:
 runs-on: ubuntu-latest
 
-```
 steps:
   - uses: actions/checkout@v4
 
