@@ -4,9 +4,7 @@ on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - main
+
   workflow_dispatch:
 
 env:
@@ -14,11 +12,26 @@ env:
 
 jobs:
   ai-generated-tests:
+    name: Run AI Generated Tests
+
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        startsWith(github.event.pull_request.head.ref, 'cursor')
+      )
+
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Display branch info
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "PR branch: ${{ github.event.pull_request.head.ref }}"
+          echo "PR author: ${{ github.event.pull_request.user.login }}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,11 +51,14 @@ jobs:
             echo "::error::Directory not found: ${{ env.AI_GENERATED_TEST_DIR }}"
             exit 1
           fi
+
           SPEC_COUNT=$(find "${{ env.AI_GENERATED_TEST_DIR }}" \( -name '*.spec.ts' -o -name '*.test.ts' \) | wc -l | tr -d ' ')
+
           if [ "$SPEC_COUNT" = "0" ]; then
-            echo "::error::No spec files in ${{ env.AI_GENERATED_TEST_DIR }}"
+            echo "::error::No spec files found in ${{ env.AI_GENERATED_TEST_DIR }}"
             exit 1
           fi
+
           echo "Found $SPEC_COUNT spec file(s)."
 
       - name: Run AI generated tests
