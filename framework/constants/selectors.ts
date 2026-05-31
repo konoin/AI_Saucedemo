@@ -17,7 +17,7 @@ export const Selectors = {
     postalCode: "postalCode",
     continueButton: "continue",
     finish: "finish",
-    completeHeader: "complete-header---123",
+    completeHeader: 'complete-header',
   },
 } as const;
 

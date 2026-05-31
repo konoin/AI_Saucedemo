@@ -77,18 +77,18 @@ No locators. No assertions.
 
 Extends Playwright `test` with:
 
-| Fixture | Type |
-|---------|------|
-| `loginPage` | `LoginPage` |
-| `inventoryPage` | `InventoryPage` |
-| `cartPage` | `CartPage` |
-| `checkoutPage` | `CheckoutPage` |
+| Fixture                | Type                   |
+| ---------------------- | ---------------------- |
+| `loginPage`            | `LoginPage`            |
+| `inventoryPage`        | `InventoryPage`        |
+| `cartPage`             | `CartPage`             |
+| `checkoutPage`         | `CheckoutPage`         |
 | `checkoutCompletePage` | `CheckoutCompletePage` |
 
 Specs import:
 
 ```typescript
-import { test, expect } from '@fixtures/base.fixture';
+import { test, expect } from "@fixtures/base.fixture";
 ```
 
 ---
@@ -100,24 +100,24 @@ import { test, expect } from '@fixtures/base.fixture';
 ```typescript
 export const Selectors = {
   login: {
-    username: 'username',
-    password: 'password',
-    loginButton: 'login-button',
+    username: "username",
+    password: "password",
+    loginButton: "login-button",
   },
   inventory: {
-    shoppingCartLink: 'shopping-cart-link',
-    addToCartBackpack: 'add-to-cart-sauce-labs-backpack',
+    shoppingCartLink: "shopping-cart-link",
+    addToCartBackpack: "add-to-cart-sauce-labs-backpack",
   },
   cart: {
-    checkout: 'checkout',
+    checkout: "checkout",
   },
   checkout: {
-    firstName: 'firstName',
-    lastName: 'lastName',
-    postalCode: 'postalCode',
-    continueButton: 'continue',
-    finish: 'finish',
-    completeHeader: 'complete-header---123',
+    firstName: "firstName",
+    lastName: "lastName",
+    postalCode: "postalCode",
+    continueButton: "continue",
+    finish: "finish",
+    completeHeader: "complete-header",
   },
 } as const;
 ```
@@ -134,8 +134,8 @@ Add new keys under the correct namespace before using in pages.
 
 ```typescript
 export const standardUser: User = {
-  username: 'standard_user',
-  password: 'secret_sauce',
+  username: "standard_user",
+  password: "secret_sauce",
 };
 ```
 
@@ -143,9 +143,9 @@ export const standardUser: User = {
 
 ```typescript
 export const defaultCheckoutCustomer: CheckoutCustomer = {
-  firstName: 'John',
-  lastName: 'Doe',
-  postalCode: '12345',
+  firstName: "John",
+  lastName: "Doe",
+  postalCode: "12345",
 };
 ```
 
@@ -158,7 +158,7 @@ Types: `@types` → `framework/types/user.ts`, `checkout-customer.ts`, barrel `i
 ### `framework/tests/checkout.spec.ts`
 
 ```typescript
-test('@critical @smoke @regression successful checkout flow', async ({
+test("@critical @smoke @regression successful checkout flow", async ({
   page,
   loginPage,
   inventoryPage,
@@ -178,11 +178,11 @@ test('@critical @smoke @regression successful checkout flow', async ({
 });
 ```
 
-| Phase | Implementation |
-|-------|----------------|
+| Phase   | Implementation                                    |
+| ------- | ------------------------------------------------- |
 | Arrange | Fixtures + `LoginFlow` / `CheckoutFlow` instances |
-| Act | `loginFlow.loginAs`, `checkoutFlow.completeOrder` |
-| Assert | `expect(page).toHaveURL`, `expectThankYouMessage` |
+| Act     | `loginFlow.loginAs`, `checkoutFlow.completeOrder` |
+| Assert  | `expect(page).toHaveURL`, `expectThankYouMessage` |
 
 ### Example skeletons (not executed)
 
@@ -194,24 +194,24 @@ test('@critical @smoke @regression successful checkout flow', async ({
 
 ## Path aliases
 
-| Alias | Path |
-|-------|------|
-| `@pages/*` | `framework/pages/*` |
-| `@flows/*` | `framework/flows/*` |
-| `@fixtures/*` | `framework/fixtures/*` |
-| `@data/*` | `framework/data/*` |
-| `@constants/*` | `framework/constants/*` |
-| `@types` | `framework/types/index.ts` |
+| Alias          | Path                       |
+| -------------- | -------------------------- |
+| `@pages/*`     | `framework/pages/*`        |
+| `@flows/*`     | `framework/flows/*`        |
+| `@fixtures/*`  | `framework/fixtures/*`     |
+| `@data/*`      | `framework/data/*`         |
+| `@constants/*` | `framework/constants/*`    |
+| `@types`       | `framework/types/index.ts` |
 
 ---
 
 ## Tags and CI
 
-| Tag | Command |
-|-----|---------|
-| `@smoke` | `npm run test:smoke` |
+| Tag           | Command                   |
+| ------------- | ------------------------- |
+| `@smoke`      | `npm run test:smoke`      |
 | `@regression` | `npm run test:regression` |
-| `@critical` | `npm run test:critical` |
+| `@critical`   | `npm run test:critical`   |
 
 ---
 

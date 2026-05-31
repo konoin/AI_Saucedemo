@@ -1,40 +1,43 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from "@playwright/test";
 
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: './framework/tests',
-  testIgnore: ['**/*.example.ts'],
+  testDir: "./framework/tests",
+  testIgnore: ["**/*.example.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: [
-    ['list'],
-    ['html'],
-    ['json', { outputFile: 'playwright-report/results.json' }],
-    ['./framework/reporters/ai-reporter.ts', { outputFile: 'test-results/ai-report.json' }],
+    ["list"],
+    ["html"],
+    ["json", { outputFile: "playwright-report/results.json" }],
+    [
+      "./framework/reporters/ai-reporter.ts",
+      { outputFile: "test-results/ai-report.json" },
+    ],
   ],
   use: {
-    baseURL: 'https://www.saucedemo.com',
-    testIdAttribute: 'data-test',
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    baseURL: "https://www.saucedemo.com",
+    testIdAttribute: "data-test",
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
     {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
     },
     {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
     },
   ],
 });
