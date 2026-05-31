@@ -29,6 +29,7 @@ test('@critical @regression MP-11 cart persists after logout and login', async (
   await expect.poll(() => cartPage.getProductNames()).toEqual(expectedNames);
 
   await page.goBack();
+  await expect(page).toHaveURL(/inventory/);
   await inventoryPage.logout();
   await expect(page).toHaveURL(/\/$/);
 

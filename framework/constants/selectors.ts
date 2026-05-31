@@ -7,8 +7,6 @@ export const Selectors = {
   inventory: {
     shoppingCartLink: "shopping-cart-link",
     shoppingCartBadge: "shopping-cart-badge",
-    menuButton: "react-burger-menu-btn",
-    logoutSidebarLink: "logout-sidebar-link",
     item: "inventory-item",
     itemName: "inventory-item-name",
     itemPrice: "inventory-item-price",

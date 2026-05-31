@@ -41,7 +41,7 @@ export class InventoryPage {
   }
 
   async logout() {
-    await this.page.getByTestId(inventorySelectors.menuButton).click();
-    await this.page.getByTestId(inventorySelectors.logoutSidebarLink).click();
+    await this.page.getByRole('button', { name: 'Open Menu' }).click();
+    await this.page.getByRole('link', { name: 'Logout' }).click();
   }
 }

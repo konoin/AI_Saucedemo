@@ -8,7 +8,7 @@ export const PRODUCTS = {
     price: '$9.99',
   },
   boltTShirt: {
-    name: 'Sauce Bolt T-Shirt',
+    name: 'Sauce Labs Bolt T-Shirt',
     price: '$15.99',
   },
 } as const;
