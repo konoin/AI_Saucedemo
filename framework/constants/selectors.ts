@@ -6,7 +6,16 @@ export const Selectors = {
   },
   inventory: {
     shoppingCartLink: "shopping-cart-link",
+    shoppingCartBadge: "shopping-cart-badge",
+    item: "inventory-item",
+    itemName: "inventory-item-name",
+    itemPrice: "inventory-item-price",
     addToCartBackpack: "add-to-cart-sauce-labs-backpack",
+    addToCartBikeLight: "add-to-cart-sauce-labs-bike-light",
+    addToCartBoltTShirt: "add-to-cart-sauce-labs-bolt-t-shirt",
+    removeBackpack: "remove-sauce-labs-backpack",
+    removeBikeLight: "remove-sauce-labs-bike-light",
+    removeBoltTShirt: "remove-sauce-labs-bolt-t-shirt",
   },
   cart: {
     checkout: "checkout",
@@ -17,6 +26,11 @@ export const Selectors = {
     postalCode: "postalCode",
     continueButton: "continue",
     finish: "finish",
+    error: "error",
+    title: "title",
+    subtotal: "subtotal-label",
+    tax: "tax-label",
+    total: "total-label",
     completeHeader: 'complete-header',
   },
 } as const;
