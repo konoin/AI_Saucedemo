@@ -1,10 +1,10 @@
-import { test, expect } from '@fixtures/base.fixture';
-import { LoginPage } from '@pages/LoginPage';
-import { ProductsPage } from '@pages/ProductsPage';
-import { CartPage } from '@pages/CartPage';
-import { CheckoutInformationPage } from '@pages/CheckoutInformationPage';
-import { CheckoutOverviewPage } from '@pages/CheckoutOverviewPage';
-import { CheckoutCompletePage } from '@pages/CheckoutCompletePage';
+import { test, expect } from "@fixtures/base.fixture";
+import { LoginPage } from "@pages/LoginPage";
+import { ProductsPage } from "@pages/ProductsPage";
+import { CartPage } from "@pages/CartPage";
+import { CheckoutInformationPage } from "@pages/CheckoutInformationPage";
+import { CheckoutOverviewPage } from "@pages/CheckoutOverviewPage";
+import { CheckoutCompletePage } from "@pages/CheckoutCompletePage";
 
 test("MP-01 - Successful checkout with a single product @regression @critical @smoke", async ({
   page,
@@ -74,5 +74,5 @@ test("MP-01 - Successful checkout with a single product @regression @critical @s
   // Assert: Order completed successfully and confirmation message is displayed
   expect(await checkoutCompletePage.isConfirmationVisible()).toBeTruthy();
   const confirmationText = await checkoutCompletePage.getConfirmationText();
-  expect(confirmationText).toContain("THANK YOU FOR YOUR ORDER");
+  expect(confirmationText).toContain("Thank you for your order!");
 });
