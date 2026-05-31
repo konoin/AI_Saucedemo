@@ -4,7 +4,7 @@ import { inventorySelectors } from '@constants/selectors';
 const PRODUCT_ADD_TO_CART_SELECTORS: Record<string, string> = {
   'Sauce Labs Backpack': inventorySelectors.addToCartBackpack,
   'Sauce Labs Bike Light': inventorySelectors.addToCartBikeLight,
-  'Sauce Bolt T-Shirt': inventorySelectors.addToCartBoltTShirt,
+  'Sauce Labs Bolt T-Shirt': inventorySelectors.addToCartBoltTShirt,
 };
 
 export class InventoryPage {
